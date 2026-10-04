@@ -1,0 +1,146 @@
+{
+  "theme": "light",
+  "archetype": "Organic & Earthy + High-Contrast",
+  "typography": {
+    "headings": {
+      "font_family": "Cabinet Grotesk, sans-serif",
+      "weights": ["font-medium", "font-bold", "font-black"],
+      "tracking": "tracking-tight",
+      "rules": "Never use Inter for headings. Keep line-height tight (leading-none or leading-tight). Max hero text size is text-5xl."
+    },
+    "body": {
+      "font_family": "Satoshi, sans-serif",
+      "weights": ["font-normal", "font-medium"],
+      "tracking": "tracking-normal",
+      "rules": "Use for all functional text, inputs, buttons, and descriptions."
+    }
+  },
+  "colors": {
+    "background": {
+      "main": "#F8F7F4",
+      "description": "Bone White. Used for the main app background to give an organic, warm feel."
+    },
+    "surface": {
+      "main": "#FFFFFF",
+      "description": "Pure white for cards and floating elements to pop against the bone white background."
+    },
+    "primary": {
+      "main": "#C94A29",
+      "hover": "#A63D22",
+      "description": "Terracotta/Rust. Triggers appetite. Used for primary CTAs (Add to Cart, Accept Order), active states, and alert indicators."
+    },
+    "secondary": {
+      "main": "#2E3D36",
+      "description": "Deep Forest Green. Used for primary text, elegant contrast, and success states (Order Ready)."
+    },
+    "text": {
+      "primary": "#1A1A1A",
+      "secondary": "#666666",
+      "disabled": "#A3A3A3"
+    },
+    "border": {
+      "main": "#E5E5E5"
+    }
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "soft": "shadow-[0_8px_30px_rgb(0,0,0,0.04)]",
+      "hover": "shadow-[0_8px_30px_rgb(201,74,41,0.12)]"
+    },
+    "borders": {
+      "radius": "rounded-2xl",
+      "style": "border border-neutral-200"
+    },
+    "glassmorphism": {
+      "header": "bg-white/80 backdrop-blur-xl border-b border-black/5"
+    }
+  },
+  "components": {
+    "customer_menu": {
+      "layout": "Mobile-first. Fixed top glassmorphism header with category tabs (horizontal scroll). Sticky bottom cart summary button.",
+      "item_card": "Vertical layout. Large top image (max-h-48, object-cover, rounded-t-2xl), pure white body, crisp typography. 'Add' button in Terracotta.",
+      "category_tabs": "Pill-shaped tabs. Active tab gets bg-primary text-white. Inactive is bg-white text-secondary."
+    },
+    "cashier_dashboard": {
+      "layout": "Tablet-optimized High-Density Bento Grid. Sidebar navigation (fixed, dark theme #2E3D36). Main content area uses bone-white background.",
+      "order_board": "Kanban style or Dense List. Status colors: New (Terracotta), Preparing (Amber), Ready (Forest Green).",
+      "cards": "Flat solid surfaces with 1px border. No heavy shadows to prevent visual fatigue."
+    },
+    "owner_dashboard": {
+      "layout": "Standard web layout. Top metrics (Sales, Orders). Data tables for menu management and staff.",
+      "charts": "Use Recharts or Shadcn charts. Keep charts minimalistic without grid lines."
+    }
+  },
+  "layouts": {
+    "spacing": "Generous. Use p-6, p-8 for containers. Gap-4 to gap-8 for grids.",
+    "alignment": "Optical alignment over geometrical. Left-align text for readability, center-align empty states.",
+    "rtl_support": "CRITICAL: The app must support Arabic (RTL). Use logical properties: me-* (margin-inline-end), ms-* (margin-inline-start), ps-*, pe-*, text-start, text-end instead of left/right."
+  },
+  "motion": {
+    "transitions": "transition-all duration-300 ease-out",
+    "hover": "Slight lift (-translate-y-1) for cards. Button scale down (active:scale-95).",
+    "list_items": "Staggered fade-in for menu items and incoming orders."
+  },
+  "accessibility": {
+    "contrast": "Ensure white text on Terracotta meets 4.5:1 ratio. Text colors should be dark charcoal.",
+    "targets": "Minimum 48x48px tap targets for mobile menus and cashier dashboard buttons.",
+    "testing": "All interactive elements MUST include data-testid attribute (e.g., data-testid='add-to-cart-btn')."
+  },
+  "media": {
+    "images": [
+      {
+        "url": "https://images.pexels.com/photos/37881956/pexels-photo-37881956.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Gourmet vegan burger on dark background. Use for hero menu item or promotions.",
+        "category": "Food"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1662452883375-9226ea22c765?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwzfHxnb3VybWV0JTIwYnVyZ2VyJTIwZGFyayUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzg2MTA1MzI1fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Burger and fries on a plate. Use for main menu item card.",
+        "category": "Food"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1592663527359-cf6642f54cff?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxpY2VkJTIwbGF0dGUlMjBjYWZlfGVufDB8fHx8MTc4NjEwNTMyNXww&ixlib=rb-4.1.0&q=85",
+        "description": "Iced latte in clear glass. Use for drinks category.",
+        "category": "Beverage"
+      },
+      {
+        "url": "https://images.pexels.com/photos/2387675/pexels-photo-2387675.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Spacious modern restaurant interior. Use for owner login screen background or dashboard empty states.",
+        "category": "Interior"
+      },
+      {
+        "url": "https://images.pexels.com/photos/4253133/pexels-photo-4253133.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Chef cooking in modern kitchen. Use for 'Preparing' state illustrations or staff management sections.",
+        "category": "Staff"
+      }
+    ]
+  },
+  "libraries_and_tools": {
+    "icons": "lucide-react for standard icons.",
+    "charts": "recharts for owner analytics dashboard.",
+    "toast": "sonner for all notifications (e.g., 'Order placed', 'New order received').",
+    "animations": "framer-motion for page transitions and micro-interactions."
+  },
+  "instructions_to_main_agent": [
+    "1. Setup Tailwind config with custom colors (bone-white, terracotta, forest green) and fonts (Cabinet Grotesk, Satoshi).",
+    "2. Build the app using .js and .jsx files (not .tsx as instructed).",
+    "3. Scaffold three main layout routes: /menu (Mobile QR view), /cashier (Tablet POS view), and /admin (Desktop owner view).",
+    "4. Prioritize the mobile /menu route. Implement sticky category headers, horizontal scrolling tabs, and a floating 'View Cart' CTA at the bottom.",
+    "5. For the /cashier route, use a dense grid to display live orders. Color-code orders by status.",
+    "6. Use RTL-friendly Tailwind classes (pe-*, ps-*, text-start) everywhere to ensure the Arabic language toggle works seamlessly without layout breaks.",
+    "7. Mock WebSocket data using a React Context or a custom hook with intervals to simulate live order status updates.",
+    "8. Format all prices in IDR (Rp) by default.",
+    "9. Add data-testid to all buttons and inputs.",
+    "10. Do not use generic centered layouts. Maintain high contrast. Use sonner for notifications."
+  ],
+  "universal_guidelines": [
+    "Create depth through layered design elements with z-index hierarchy",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) for sticky navs.",
+    "Do NOT apply universal transition (transition: all). Use specific transitions.",
+    "Do NOT center align the app container. Preserve natural reading flow.",
+    "Always use modern button styles like pill-shaped or rounded-xl with hover scales.",
+    "NEVER use AI assistant Emoji characters (🤖🧠💡).",
+    "Prioritize using pre-existing components from src/components/ui.",
+    "Use sonner for toast notifications."
+  ]
+}
