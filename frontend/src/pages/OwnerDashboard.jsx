@@ -1,18 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { LogOut, ChefHat, LayoutDashboard, UtensilsCrossed, Users, BarChart3, Settings as SettingsIcon, ScrollText, QrCode, Plus, Trash2 } from "lucide-react";
+import { LogOut, ChefHat, ShieldCheck, LayoutDashboard, UtensilsCrossed, Users, BarChart3, Settings as SettingsIcon, ScrollText, QrCode, Plus, Trash2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { api, money, errMsg, BACKEND_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
 import { useI18n } from "@/i18n";
-import { LangSwitch } from "@/components/Shared";
+import { LangSwitch, ChangePasswordButton } from "@/components/Shared";
+import { StaffTab } from "@/components/StaffTab";
+import { SettingsTab } from "@/components/SettingsTab";
+import { AdminTab } from "@/components/AdminTab";
 import CashierDashboard from "@/pages/CashierDashboard";
 
 const TABS = [
   ["orders", LayoutDashboard], ["menu", UtensilsCrossed], ["staff", Users],
   ["reports", BarChart3], ["tables", QrCode], ["auditLog", ScrollText], ["settings", SettingsIcon],
 ];
+// Only the super admin gets the extra tab.
+const ADMIN_TAB = ["adminPanel", ShieldCheck];
 
 export default function OwnerDashboard() {
   const { user, logout } = useAuth();
@@ -31,7 +36,7 @@ export default function OwnerDashboard() {
           </div>
         </div>
         <nav className="flex md:flex-col gap-1.5 overflow-x-auto no-scrollbar">
-          {TABS.map(([k, Icon]) => (
+          {[...TABS, ...(user.role === "super_admin" ? [ADMIN_TAB] : [])].map(([k, Icon]) => (
             <button
               key={k} data-testid={`owner-tab-${k}`} onClick={() => setTab(k)}
               className={`shrink-0 flex items-center gap-2.5 min-h-[44px] px-4 rounded-xl text-sm font-medium transition-colors duration-200 ${
@@ -44,6 +49,7 @@ export default function OwnerDashboard() {
         </nav>
         <div className="mt-8 flex items-center gap-3">
           <LangSwitch dark />
+          <ChangePasswordButton dark />
           <button data-testid="owner-logout-btn" onClick={logout} className="w-11 h-11 rounded-xl bg-white/10 grid place-items-center"><LogOut className="w-4 h-4" /></button>
         </div>
       </aside>
@@ -51,11 +57,12 @@ export default function OwnerDashboard() {
       <main className="flex-1 min-w-0">
         {tab === "orders" && <CashierDashboard />}
         {tab === "menu" && <MenuTab />}
-        {tab === "staff" && <StaffTab />}
+        {tab === "staff" && <StaffTab Panel={Panel} />}
         {tab === "reports" && <ReportsTab />}
         {tab === "tables" && <TablesTab />}
         {tab === "auditLog" && <AuditTab />}
-        {tab === "settings" && <SettingsTab />}
+        {tab === "settings" && <SettingsTab Panel={Panel} />}
+        {tab === "adminPanel" && user.role === "super_admin" && <AdminTab Panel={Panel} />}
       </main>
     </div>
   );
@@ -82,7 +89,7 @@ function MenuTab() {
   const load = () => api.get("/menu").then((r) => setItems(r.data));
   useEffect(() => { load(); }, []);
 
-  const blank = { name: "", description: "", image: "", price: 0, discount_price: null, category: "Makanan Utama", available: true, options: [] };
+  const blank = { name: "", description: "", name_en: "", name_ar: "", description_en: "", description_ar: "", image: "", price: 0, discount_price: null, category: "Makanan Utama", available: true, options: [] };
 
   const save = async () => {
     try {
@@ -113,7 +120,7 @@ function MenuTab() {
               <div className="text-xs text-neutral-500">{it.category}</div>
               <div className="mt-1 font-bold brand-text text-sm">{money(it.discount_price ?? it.price, settings.currency)}</div>
               <div className={`mt-1 text-xs ${it.available ? "text-emerald-700" : "text-red-600"}`}>
-                {it.available ? t("available") : "Habis"}
+                {it.available ? t("available") : t("soldOut")}
               </div>
               <div className="mt-3 flex gap-2">
                 <button data-testid={`edit-menu-${it.id}`} onClick={() => setForm({ ...it })} className="flex-1 min-h-[40px] rounded-lg border border-neutral-200 text-sm font-medium">{t("edit")}</button>
@@ -131,6 +138,12 @@ function MenuTab() {
             <div className="space-y-3">
               <input data-testid="menu-name-input" className={input} placeholder={t("name")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               <input data-testid="menu-desc-input" className={input} placeholder={t("desc")} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              <div className="grid grid-cols-2 gap-3">
+                <input data-testid="menu-name-en-input" className={input} placeholder={`${t("name")} (EN)`} value={form.name_en || ""} onChange={(e) => setForm({ ...form, name_en: e.target.value })} />
+                <input data-testid="menu-name-ar-input" dir="rtl" className={input} placeholder={`${t("name")} (AR)`} value={form.name_ar || ""} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} />
+                <input data-testid="menu-desc-en-input" className={input} placeholder={`${t("desc")} (EN)`} value={form.description_en || ""} onChange={(e) => setForm({ ...form, description_en: e.target.value })} />
+                <input data-testid="menu-desc-ar-input" dir="rtl" className={input} placeholder={`${t("desc")} (AR)`} value={form.description_ar || ""} onChange={(e) => setForm({ ...form, description_ar: e.target.value })} />
+              </div>
               <input data-testid="menu-image-input" className={input} placeholder="Image URL" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} />
               <input data-testid="menu-category-input" className={input} placeholder={t("category")} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
               <div className="flex gap-3">
@@ -186,48 +199,6 @@ function OptionEditor({ form, setForm }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function StaffTab() {
-  const { t } = useI18n();
-  const [staff, setStaff] = useState([]);
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "cashier" });
-  const load = () => api.get("/staff").then((r) => setStaff(r.data));
-  useEffect(() => { load(); }, []);
-
-  const create = async () => {
-    try { await api.post("/staff", form); setForm({ name: "", email: "", password: "", role: "cashier" }); load(); toast.success(t("addStaff") + " ✓"); }
-    catch (e) { toast.error(errMsg(e)); }
-  };
-  const toggle = async (s) => {
-    try { await api.put(`/staff/${s.id}`, { active: !(s.active !== false) }); load(); }
-    catch (e) { toast.error(errMsg(e)); }
-  };
-
-  return (
-    <Panel title={t("staff")}>
-      <div className="bg-white rounded-2xl border border-neutral-200 p-5 mb-6 grid sm:grid-cols-4 gap-3">
-        <input data-testid="staff-name-input" className={input} placeholder={t("name")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input data-testid="staff-email-input" className={input} placeholder={t("email")} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input data-testid="staff-password-input" className={input} placeholder={t("password")} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        <button data-testid="create-staff-btn" onClick={create} className="h-11 rounded-xl brand-bg text-white text-sm font-medium">{t("addStaff")}</button>
-      </div>
-      <div className="bg-white rounded-2xl border border-neutral-200 divide-y divide-neutral-100">
-        {staff.map((s) => (
-          <div key={s.id} data-testid={`staff-row-${s.email}`} className="flex items-center justify-between p-4">
-            <div>
-              <div className="font-medium">{s.name}</div>
-              <div className="text-xs text-neutral-500">{s.email} · {s.role}</div>
-            </div>
-            <button data-testid={`toggle-staff-${s.email}`} onClick={() => toggle(s)}
-              className={`min-h-[40px] px-4 rounded-xl text-xs font-bold ${s.active !== false ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-600"}`}>
-              {s.active !== false ? t("active") : t("inactive")}
-            </button>
-          </div>
-        ))}
-      </div>
-    </Panel>
   );
 }
 
@@ -337,46 +308,3 @@ function AuditTab() {
   );
 }
 
-function SettingsTab() {
-  const { t } = useI18n();
-  const { settings, setSettings, refresh } = useSettings();
-  const [f, setF] = useState(settings);
-  useEffect(() => setF(settings), [settings]);
-
-  const save = async () => {
-    try {
-      const { data } = await api.put("/settings", {
-        restaurant_name: f.restaurant_name, logo: f.logo, primary_color: f.primary_color,
-        currency: f.currency, tax_rate: Number(f.tax_rate), service_charge: Number(f.service_charge),
-        table_count: Number(f.table_count),
-      });
-      setSettings(data); refresh(); toast.success(t("save") + " ✓");
-    } catch (e) { toast.error(errMsg(e)); }
-  };
-
-  return (
-    <Panel title={t("settings")}>
-      <div className="bg-white rounded-2xl border border-neutral-200 p-6 max-w-xl space-y-4">
-        {[["restaurant_name", t("name")], ["logo", "Logo URL"], ["currency", "Currency"]].map(([k, label]) => (
-          <div key={k}>
-            <label className="text-sm font-medium text-neutral-600">{label}</label>
-            <input data-testid={`settings-${k}-input`} className={`${input} mt-1.5`} value={f[k] ?? ""} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
-          </div>
-        ))}
-        <div>
-          <label className="text-sm font-medium text-neutral-600">Warna Utama</label>
-          <input data-testid="settings-color-input" type="color" className="mt-1.5 w-20 h-11 rounded-xl border border-neutral-200" value={f.primary_color} onChange={(e) => setF({ ...f, primary_color: e.target.value })} />
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {[["tax_rate", t("tax") + " %"], ["service_charge", t("service") + " %"], ["table_count", t("tables")]].map(([k, label]) => (
-            <div key={k}>
-              <label className="text-sm font-medium text-neutral-600">{label}</label>
-              <input data-testid={`settings-${k}-input`} type="number" className={`${input} mt-1.5`} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
-            </div>
-          ))}
-        </div>
-        <button data-testid="save-settings-btn" onClick={save} className="w-full h-12 rounded-xl brand-bg text-white font-medium">{t("save")}</button>
-      </div>
-    </Panel>
-  );
-}

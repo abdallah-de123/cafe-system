@@ -91,8 +91,8 @@ def compute_totals(items: List[dict], settings: dict) -> dict:
 
 
 def customer_view(o: dict) -> dict:
-    """What a customer may see of an order (no internal staff ids)."""
-    d = clean(o)
+    """What a customer may see of an order (no internal staff ids). Accepts raw or cleaned docs."""
+    d = clean(o) if "_id" in o else dict(o)
     d.pop("accepted_by", None)
     return d
 
