@@ -26,6 +26,8 @@ const dict = {
     ordersCount: "Jumlah Pesanan", totalCash: "Total Uang", role: "Peran",
     active: "Aktif", inactive: "Nonaktif", addStaff: "Tambah Karyawan",
     handledBy: "Ditangani oleh", placedAt: "Dipesan", options: "Pilihan",
+    orderPlaced: "Pesanan Terkirim!", orderPlacedDesc: "Dapur kami sudah menerima pesanan Anda.",
+    orderNumber: "Nomor Pesanan", trackOrder: "Lihat Status Pesanan", close: "Tutup",
   },
   en: {
     menu: "Menu", cart: "Cart", search: "Search menu...", all: "All",
@@ -52,6 +54,8 @@ const dict = {
     ordersCount: "Orders", totalCash: "Total Cash", role: "Role",
     active: "Active", inactive: "Inactive", addStaff: "Add Staff",
     handledBy: "Handled by", placedAt: "Placed", options: "Options",
+    orderPlaced: "Order Sent!", orderPlacedDesc: "Our kitchen has received your order.",
+    orderNumber: "Order Number", trackOrder: "Track Order Status", close: "Close",
   },
   ar: {
     menu: "القائمة", cart: "السلة", search: "ابحث في القائمة...", all: "الكل",
@@ -78,6 +82,8 @@ const dict = {
     ordersCount: "عدد الطلبات", totalCash: "إجمالي النقد", role: "الدور",
     active: "نشط", inactive: "غير نشط", addStaff: "إضافة موظف",
     handledBy: "تم التعامل بواسطة", placedAt: "وقت الطلب", options: "الخيارات",
+    orderPlaced: "تم إرسال الطلب!", orderPlacedDesc: "استلم المطبخ طلبك بنجاح.",
+    orderNumber: "رقم الطلب", trackOrder: "تتبع حالة الطلب", close: "إغلاق",
   },
 };
 
@@ -95,6 +101,14 @@ export function I18nProvider({ children }) {
 }
 
 export const useI18n = () => useContext(I18nCtx);
+
+export function localized(obj, field, lang) {
+  if (!obj) return "";
+  if (lang === "en") return obj[`${field}_en`] || obj[field] || "";
+  if (lang === "ar") return obj[`${field}_ar`] || obj[field] || "";
+  return obj[field] || "";
+}
+
 export const LANGS = [
   { code: "id", label: "ID" },
   { code: "en", label: "EN" },

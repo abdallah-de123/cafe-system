@@ -145,11 +145,15 @@ class LoginIn(BaseModel):
 
 class OptionChoice(BaseModel):
     label: str
+    label_en: str = ""
+    label_ar: str = ""
     price_delta: float = 0
 
 
 class OptionGroup(BaseModel):
     name: str
+    name_en: str = ""
+    name_ar: str = ""
     required: bool = False
     choices: List[OptionChoice] = []
 
@@ -157,6 +161,10 @@ class OptionGroup(BaseModel):
 class MenuItemIn(BaseModel):
     name: str
     description: str = ""
+    name_en: str = ""
+    name_ar: str = ""
+    description_en: str = ""
+    description_ar: str = ""
     image: str = ""
     price: float
     discount_price: Optional[float] = None
@@ -620,48 +628,100 @@ async def audit_list(user: dict = Depends(require_owner)):
 # ---------------- seed ----------------
 MENU_SEED = [
     ("Nasi Goreng Spesial", "Nasi goreng dengan ayam, telur mata sapi, dan acar", "Makanan Utama", 45000, None,
-     "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=800&q=70"),
+     "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=800&q=70",
+     "Special Fried Rice", "Fried rice with chicken, sunny-side egg and pickles",
+     "أرز مقلي خاص", "أرز مقلي مع الدجاج والبيض والمخللات"),
     ("Ayam Bakar Madu", "Ayam kampung bakar bumbu madu, sambal terasi", "Makanan Utama", 55000, 49000,
-     "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=800&q=70"),
+     "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=800&q=70",
+     "Honey Grilled Chicken", "Free-range grilled chicken with honey glaze and chili paste",
+     "دجاج مشوي بالعسل", "دجاج بلدي مشوي بصلصة العسل مع الصلصة الحارة"),
     ("Rendang Daging", "Rendang sapi khas Padang dimasak 6 jam", "Makanan Utama", 65000, None,
-     "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=800&q=70"),
+     "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=800&q=70",
+     "Beef Rendang", "Padang-style slow-cooked beef rendang, 6 hours",
+     "رندانغ لحم", "لحم بقري مطهو ببطء على طريقة بادانغ لمدة 6 ساعات"),
     ("Mie Goreng Jawa", "Mie goreng dengan sayuran segar dan bakso", "Makanan Utama", 38000, None,
-     "https://images.unsplash.com/photo-1585032226651-759b368d7246?w=800&q=70"),
+     "https://images.unsplash.com/photo-1585032226651-759b368d7246?w=800&q=70",
+     "Javanese Fried Noodles", "Fried noodles with fresh vegetables and meatballs",
+     "نودلز جاوي مقلي", "نودلز مقلي مع الخضار الطازجة وكرات اللحم"),
     ("Sate Ayam Madura", "10 tusuk sate ayam saus kacang", "Makanan Utama", 42000, None,
-     "https://images.unsplash.com/photo-1529563021893-cc83c992d75d?w=800&q=70"),
+     "https://images.unsplash.com/photo-1529563021893-cc83c992d75d?w=800&q=70",
+     "Chicken Satay", "10 chicken skewers with peanut sauce",
+     "ساتاي دجاج", "10 أسياخ دجاج مع صلصة الفول السوداني"),
     ("Gado-Gado", "Sayuran segar dengan saus kacang dan kerupuk", "Pembuka", 32000, None,
-     "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=70"),
+     "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=70",
+     "Gado-Gado Salad", "Fresh vegetables with peanut sauce and crackers",
+     "سلطة غادو غادو", "خضار طازجة مع صلصة الفول السوداني والمقرمشات"),
     ("Lumpia Semarang", "Lumpia isi rebung dan ayam, 4 potong", "Pembuka", 28000, 24000,
-     "https://images.unsplash.com/photo-1625938144755-652e08e359b7?w=800&q=70"),
+     "https://images.unsplash.com/photo-1625938144755-652e08e359b7?w=800&q=70",
+     "Semarang Spring Rolls", "Bamboo shoot and chicken spring rolls, 4 pcs",
+     "لفائف سيمارانغ", "لفائف محشوة بالدجاج وبراعم البامبو، 4 قطع"),
     ("Tahu Crispy", "Tahu goreng crispy saus sambal manis", "Pembuka", 22000, None,
-     "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=70"),
+     "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=70",
+     "Crispy Tofu", "Crispy fried tofu with sweet chili sauce",
+     "توفو مقرمش", "توفو مقلي مقرمش مع صلصة الفلفل الحلو"),
     ("Es Teh Manis", "Teh tubruk dingin dengan gula batu", "Minuman", 12000, None,
-     "https://images.unsplash.com/photo-1499638673689-79a0b5115d87?w=800&q=70"),
+     "https://images.unsplash.com/photo-1499638673689-79a0b5115d87?w=800&q=70",
+     "Iced Sweet Tea", "Chilled black tea with rock sugar",
+     "شاي مثلج محلى", "شاي أسود مثلج مع سكر النبات"),
     ("Kopi Susu Gula Aren", "Espresso, susu segar, gula aren", "Minuman", 25000, 22000,
-     "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&q=70"),
+     "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&q=70",
+     "Palm Sugar Latte", "Espresso, fresh milk and palm sugar",
+     "لاتيه بسكر النخيل", "إسبريسو مع الحليب الطازج وسكر النخيل"),
     ("Jus Alpukat", "Jus alpukat dengan susu kental manis", "Minuman", 28000, None,
-     "https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?w=800&q=70"),
+     "https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?w=800&q=70",
+     "Avocado Juice", "Avocado blended with condensed milk",
+     "عصير أفوكادو", "أفوكادو مخفوق مع الحليب المكثف"),
     ("Es Jeruk Peras", "Jeruk peras segar dengan es batu", "Minuman", 15000, None,
-     "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=800&q=70"),
+     "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=800&q=70",
+     "Iced Orange Juice", "Freshly squeezed orange juice over ice",
+     "عصير برتقال مثلج", "عصير برتقال طازج مع الثلج"),
     ("Es Cendol Durian", "Cendol, santan, gula merah, durian", "Penutup", 30000, None,
-     "https://images.unsplash.com/photo-1488900128323-21503983a07e?w=800&q=70"),
+     "https://images.unsplash.com/photo-1488900128323-21503983a07e?w=800&q=70",
+     "Durian Cendol", "Cendol with coconut milk, palm sugar and durian",
+     "تشندول بالدوريان", "تشندول مع حليب جوز الهند وسكر النخيل والدوريان"),
     ("Pisang Goreng Keju", "Pisang goreng crispy topping keju", "Penutup", 24000, None,
-     "https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=800&q=70"),
+     "https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=800&q=70",
+     "Cheese Banana Fritters", "Crispy fried banana topped with cheese",
+     "موز مقلي بالجبن", "موز مقلي مقرمش مع الجبن"),
     ("Klepon", "Kue klepon isi gula merah, 6 buah", "Penutup", 18000, None,
-     "https://images.unsplash.com/photo-1519676867240-f03562e64548?w=800&q=70"),
+     "https://images.unsplash.com/photo-1519676867240-f03562e64548?w=800&q=70",
+     "Klepon Rice Cakes", "Rice cakes filled with palm sugar, 6 pcs",
+     "كليبون", "كرات أرز محشوة بسكر النخيل، 6 حبات"),
 ]
 
-SPICE = {"name": "Tingkat Kepedasan", "required": True, "choices": [
-    {"label": "Tidak Pedas", "price_delta": 0}, {"label": "Sedang", "price_delta": 0},
-    {"label": "Pedas", "price_delta": 0}, {"label": "Extra Pedas", "price_delta": 2000}]}
-SIZE = {"name": "Ukuran", "required": True, "choices": [
-    {"label": "Regular", "price_delta": 0}, {"label": "Large", "price_delta": 8000}]}
-SUGAR = {"name": "Level Gula", "required": True, "choices": [
-    {"label": "Tanpa Gula", "price_delta": 0}, {"label": "Sedikit", "price_delta": 0},
-    {"label": "Normal", "price_delta": 0}]}
-EXTRAS = {"name": "Tambahan", "required": False, "choices": [
-    {"label": "Extra Nasi", "price_delta": 8000}, {"label": "Telur Ceplok", "price_delta": 7000},
-    {"label": "Kerupuk", "price_delta": 5000}]}
+CATEGORY_I18N = {
+    "Makanan Utama": {"en": "Main Course", "ar": "الأطباق الرئيسية"},
+    "Pembuka": {"en": "Starters", "ar": "المقبلات"},
+    "Minuman": {"en": "Drinks", "ar": "المشروبات"},
+    "Penutup": {"en": "Desserts", "ar": "الحلويات"},
+}
+
+SPICE = {"name": "Tingkat Kepedasan", "name_en": "Spice Level", "name_ar": "مستوى الحرارة",
+         "required": True, "choices": [
+    {"label": "Tidak Pedas", "label_en": "Not Spicy", "label_ar": "غير حار", "price_delta": 0},
+    {"label": "Sedang", "label_en": "Medium", "label_ar": "متوسط", "price_delta": 0},
+    {"label": "Pedas", "label_en": "Spicy", "label_ar": "حار", "price_delta": 0},
+    {"label": "Extra Pedas", "label_en": "Extra Spicy", "label_ar": "حار جداً", "price_delta": 2000}]}
+SIZE = {"name": "Ukuran", "name_en": "Size", "name_ar": "الحجم", "required": True, "choices": [
+    {"label": "Regular", "label_en": "Regular", "label_ar": "عادي", "price_delta": 0},
+    {"label": "Large", "label_en": "Large", "label_ar": "كبير", "price_delta": 8000}]}
+SUGAR = {"name": "Level Gula", "name_en": "Sugar Level", "name_ar": "مستوى السكر",
+         "required": True, "choices": [
+    {"label": "Tanpa Gula", "label_en": "No Sugar", "label_ar": "بدون سكر", "price_delta": 0},
+    {"label": "Sedikit", "label_en": "Less Sugar", "label_ar": "سكر قليل", "price_delta": 0},
+    {"label": "Normal", "label_en": "Normal", "label_ar": "عادي", "price_delta": 0}]}
+EXTRAS = {"name": "Tambahan", "name_en": "Add-ons", "name_ar": "الإضافات", "required": False, "choices": [
+    {"label": "Extra Nasi", "label_en": "Extra Rice", "label_ar": "أرز إضافي", "price_delta": 8000},
+    {"label": "Telur Ceplok", "label_en": "Fried Egg", "label_ar": "بيضة مقلية", "price_delta": 7000},
+    {"label": "Kerupuk", "label_en": "Crackers", "label_ar": "مقرمشات", "price_delta": 5000}]}
+
+
+@api.get("/categories")
+async def categories():
+    docs = await db.menu_items.find({}, {"category": 1}).to_list(500)
+    names = sorted({d["category"] for d in docs})
+    return [{"name": n, "name_en": CATEGORY_I18N.get(n, {}).get("en", n),
+             "name_ar": CATEGORY_I18N.get(n, {}).get("ar", n)} for n in names]
 
 
 @app.on_event("startup")
@@ -684,19 +744,21 @@ async def startup():
             await db.users.update_one({"_id": ex["_id"]},
                                       {"$set": {"password_hash": hash_password(pwd)}})
 
-    if await db.menu_items.count_documents({}) == 0:
-        docs = []
-        for name, desc, cat, price, disc, img in MENU_SEED:
-            if cat == "Minuman":
-                opts = [SIZE, SUGAR]
-            elif cat == "Penutup":
-                opts = [SIZE]
-            else:
-                opts = [SPICE, EXTRAS]
-            docs.append({"name": name, "description": desc, "category": cat, "price": price,
-                         "discount_price": disc, "image": img, "available": True,
-                         "options": opts, "created_at": now_iso()})
-        await db.menu_items.insert_many(docs)
+    for name, desc, cat, price, disc, img, name_en, desc_en, name_ar, desc_ar in MENU_SEED:
+        if cat == "Minuman":
+            opts = [SIZE, SUGAR]
+        elif cat == "Penutup":
+            opts = [SIZE]
+        else:
+            opts = [SPICE, EXTRAS]
+        doc = {"name": name, "description": desc, "category": cat, "price": price,
+               "discount_price": disc, "image": img, "available": True,
+               "name_en": name_en, "description_en": desc_en,
+               "name_ar": name_ar, "description_ar": desc_ar,
+               "options": opts}
+        await db.menu_items.update_one(
+            {"name": name},
+            {"$set": doc, "$setOnInsert": {"created_at": now_iso()}}, upsert=True)
     logger.info("REST-OS startup complete")
 
 

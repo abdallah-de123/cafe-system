@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Search, ShoppingBag, Plus, Minus, X, HandHelping, Receipt, Sparkles, Star, ChefHat } from "lucide-react";
+import { Search, ShoppingBag, Plus, Minus, X, HandHelping, Receipt, Sparkles, Star, ChefHat, CheckCircle2 } from "lucide-react";
 import { api, money, errMsg } from "@/lib/api";
 import { useWs } from "@/lib/ws";
 import { useSettings } from "@/context/SettingsContext";
-import { useI18n } from "@/i18n";
+import { useI18n, localized } from "@/i18n";
 import { LangSwitch, StatusTracker, StatusBadge } from "@/components/Shared";
 
 const linePrice = (it) => it.unit_price + (it.options || []).reduce((s, o) => s + (o.price_delta || 0), 0);
@@ -14,10 +14,12 @@ export default function CustomerMenu() {
   const { tableNumber } = useParams();
   const table = Number(tableNumber);
   const { settings } = useSettings();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const cur = settings.currency;
 
   const [items, setItems] = useState([]);
+  const [cats, setCats] = useState([]);
+  const [placed, setPlaced] = useState(null);
   const [cat, setCat] = useState("all");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(null);
@@ -27,7 +29,10 @@ export default function CustomerMenu() {
   const [rated, setRated] = useState({});
   const [ratingFor, setRatingFor] = useState(null);
 
-  const loadMenu = () => api.get("/menu", { params: { include_unavailable: true } }).then((r) => setItems(r.data));
+  const loadMenu = () => {
+    api.get("/menu", { params: { include_unavailable: true } }).then((r) => setItems(r.data));
+    api.get("/categories").then((r) => setCats(r.data)).catch(() => {});
+  };
   const loadOrders = () => api.get(`/tables/${table}/orders`).then((r) => setOrders(r.data));
 
   useEffect(() => { loadMenu(); loadOrders(); }, [table]);
@@ -38,9 +43,17 @@ export default function CustomerMenu() {
       setOrders((prev) => prev.map((o) => (o.id === data.id ? data : o)));
   });
 
-  const cats = useMemo(() => ["all", ...Array.from(new Set(items.map((i) => i.category)))], [items]);
+  const catList = useMemo(
+    () => [{ name: "all" }, ...cats.filter((c) => items.some((i) => i.category === c.name))],
+    [cats, items]
+  );
+  const ql = q.toLowerCase();
   const shown = items.filter(
-    (i) => (cat === "all" || i.category === cat) && i.name.toLowerCase().includes(q.toLowerCase())
+    (i) =>
+      (cat === "all" || i.category === cat) &&
+      (i.name.toLowerCase().includes(ql) ||
+        (i.name_en || "").toLowerCase().includes(ql) ||
+        (i.name_ar || "").includes(q))
   );
   const cartTotal = cart.reduce((s, it) => s + linePrice(it) * it.qty, 0);
   const cartCount = cart.reduce((s, it) => s + it.qty, 0);
@@ -57,7 +70,7 @@ export default function CustomerMenu() {
       const { data } = await api.post("/orders", payload);
       setCart([]); setCartOpen(false);
       setOrders((p) => [data, ...p]);
-      toast.success(`${t("submitOrder")} ✓ ${data.order_number}`);
+      setPlaced(data);
     } catch (e) { toast.error(errMsg(e)); }
   };
 
@@ -95,14 +108,14 @@ export default function CustomerMenu() {
           </div>
 
           <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar">
-            {cats.map((c) => (
+            {catList.map((c) => (
               <button
-                key={c} data-testid={`category-${c}`} onClick={() => setCat(c)}
+                key={c.name} data-testid={`category-${c.name}`} onClick={() => setCat(c.name)}
                 className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-colors duration-200 ${
-                  cat === c ? "brand-bg text-white border-transparent" : "bg-white text-[#2E3D36] border-neutral-200"
+                  cat === c.name ? "brand-bg text-white border-transparent" : "bg-white text-[#2E3D36] border-neutral-200"
                 }`}
               >
-                {c === "all" ? t("all") : c}
+                {c.name === "all" ? t("all") : localized(c, "name", lang)}
               </button>
             ))}
           </div>
@@ -124,7 +137,7 @@ export default function CustomerMenu() {
                   <div className="mt-4 pt-3 border-t border-neutral-100 text-sm space-y-1">
                     {o.items.map((it, i) => (
                       <div key={i} className="flex justify-between text-neutral-600">
-                        <span>{it.qty}× {it.name}</span>
+                        <span>{it.qty}× {localized(it, "name", lang)}</span>
                         <span>{money(linePrice(it) * it.qty, cur)}</span>
                       </div>
                     ))}
@@ -170,10 +183,10 @@ export default function CustomerMenu() {
               className="text-start bg-white rounded-2xl border border-neutral-200 overflow-hidden soft-shadow hover:-translate-y-1 transition-transform duration-300 disabled:opacity-50 rise"
               style={{ animationDelay: `${idx * 40}ms` }}
             >
-              <img src={it.image} alt={it.name} className="w-full h-32 object-cover" />
+              <img src={it.image} alt={localized(it, "name", lang)} className="w-full h-32 object-cover" />
               <div className="p-3">
-                <div className="font-display font-bold text-sm leading-tight">{it.name}</div>
-                <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{it.description}</p>
+                <div className="font-display font-bold text-sm leading-tight">{localized(it, "name", lang)}</div>
+                <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{localized(it, "description", lang)}</p>
                 <div className="mt-2 flex items-center gap-2">
                   <span className="font-bold text-sm brand-text">{money(it.discount_price ?? it.price, cur)}</span>
                   {it.discount_price && <span className="text-xs text-neutral-400 line-through">{money(it.price, cur)}</span>}
@@ -211,8 +224,8 @@ export default function CustomerMenu() {
               {cart.map((c, i) => (
                 <div key={i} className="flex gap-3 items-start border-b border-neutral-100 pb-3">
                   <div className="flex-1">
-                    <div className="font-medium text-sm">{c.name}</div>
-                    {c.options.length > 0 && <div className="text-xs text-neutral-500">{c.options.map((o) => o.label).join(", ")}</div>}
+                    <div className="font-medium text-sm">{localized(c, "name", lang)}</div>
+                    {c.options.length > 0 && <div className="text-xs text-neutral-500">{c.options.map((o) => localized(o, "label", lang)).join(", ")}</div>}
                     {c.note && <div className="text-xs italic text-neutral-400">"{c.note}"</div>}
                     <div className="text-sm brand-text font-bold mt-1">{money(linePrice(c) * c.qty, cur)}</div>
                   </div>
@@ -234,6 +247,29 @@ export default function CustomerMenu() {
         </div>
       )}
 
+      {placed && (
+        <div className="fixed inset-0 z-50 bg-black/50 grid place-items-center p-5" onClick={() => setPlaced(null)}>
+          <div data-testid="order-confirmation" className="bg-white rounded-3xl p-7 w-full max-w-sm text-center rise" onClick={(e) => e.stopPropagation()}>
+            <div className="w-16 h-16 rounded-full brand-bg grid place-items-center mx-auto">
+              <CheckCircle2 className="w-9 h-9 text-white" />
+            </div>
+            <h3 className="font-display font-bold text-2xl mt-5">{t("orderPlaced")}</h3>
+            <p className="text-sm text-neutral-500 mt-2">{t("orderPlacedDesc")}</p>
+            <div className="mt-5 bg-[#F8F7F4] rounded-2xl p-4">
+              <div className="text-xs text-neutral-500">{t("orderNumber")}</div>
+              <div data-testid="confirmation-order-number" className="font-mono font-bold text-lg">{placed.order_number}</div>
+              <div className="mt-2 flex justify-between text-sm"><span>{t("total")}</span><b>{money(placed.total, cur)}</b></div>
+            </div>
+            <button
+              data-testid="confirmation-close-btn" onClick={() => setPlaced(null)}
+              className="mt-5 w-full h-12 rounded-xl brand-bg text-white font-medium active:scale-95 transition-transform"
+            >
+              {t("trackOrder")}
+            </button>
+          </div>
+        </div>
+      )}
+
       {ratingFor && (
         <RatingSheet
           order={ratingFor} onClose={() => setRatingFor(null)}
@@ -245,7 +281,7 @@ export default function CustomerMenu() {
 }
 
 function ItemSheet({ sel, setSel, cur, onAdd }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { item, qty, note, chosen } = sel;
   const options = Object.values(chosen).filter(Boolean);
   const base = item.discount_price ?? item.price;
@@ -255,17 +291,17 @@ function ItemSheet({ sel, setSel, cur, onAdd }) {
   return (
     <div className="fixed inset-0 z-40 bg-black/40 flex items-end" onClick={() => setSel(null)}>
       <div data-testid="item-sheet" className="bg-white w-full max-w-2xl mx-auto rounded-t-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <img src={item.image} alt={item.name} className="w-full h-44 object-cover" />
+        <img src={item.image} alt={localized(item, "name", lang)} className="w-full h-44 object-cover" />
         <div className="p-5">
           <div className="flex items-start justify-between">
-            <h3 className="font-display font-bold text-2xl leading-tight">{item.name}</h3>
+            <h3 className="font-display font-bold text-2xl leading-tight">{localized(item, "name", lang)}</h3>
             <button data-testid="close-item-btn" onClick={() => setSel(null)}><X className="w-5 h-5" /></button>
           </div>
-          <p className="text-sm text-neutral-500 mt-2">{item.description}</p>
+          <p className="text-sm text-neutral-500 mt-2">{localized(item, "description", lang)}</p>
 
           {(item.options || []).map((g) => (
             <div key={g.name} className="mt-5">
-              <div className="text-sm font-bold mb-2">{g.name} {g.required && <span className="brand-text">*</span>}</div>
+              <div className="text-sm font-bold mb-2">{localized(g, "name", lang)} {g.required && <span className="brand-text">*</span>}</div>
               <div className="flex flex-wrap gap-2">
                 {g.choices.map((c) => {
                   const active = chosen[g.name]?.label === c.label;
@@ -277,7 +313,7 @@ function ItemSheet({ sel, setSel, cur, onAdd }) {
                         active ? "brand-bg text-white border-transparent" : "bg-white border-neutral-200"
                       }`}
                     >
-                      {c.label}{c.price_delta ? ` +${money(c.price_delta, cur)}` : ""}
+                      {localized(c, "label", lang)}{c.price_delta ? ` +${money(c.price_delta, cur)}` : ""}
                     </button>
                   );
                 })}
@@ -302,7 +338,11 @@ function ItemSheet({ sel, setSel, cur, onAdd }) {
             </div>
             <button
               data-testid="add-to-cart-btn" disabled={missing}
-              onClick={() => onAdd({ menu_item_id: item.id, name: item.name, qty, unit_price: base, options: options.map(({ label, price_delta }) => ({ label, price_delta })), note })}
+              onClick={() => onAdd({
+                menu_item_id: item.id, name: item.name, name_en: item.name_en, name_ar: item.name_ar,
+                qty, unit_price: base, note,
+                options: options.map(({ label, label_en, label_ar, price_delta }) => ({ label, label_en, label_ar, price_delta })),
+              })}
               className="flex-1 h-12 rounded-xl brand-bg text-white font-medium active:scale-95 transition-transform disabled:opacity-50"
             >
               {t("addToCart")} · {money(unitTotal * qty, cur)}
