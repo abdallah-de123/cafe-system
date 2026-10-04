@@ -1,7 +1,11 @@
+// Auth state: current user, login/logout, change password. Token stored in localStorage.
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api } from "../lib/api";
 
 const AuthCtx = createContext(null);
+
+// Where a role lands after login. Owner and super admin share the management dashboard.
+export const homeFor = (role) => (role === "cashier" ? "/cashier" : "/owner");
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -29,7 +33,14 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-  return <AuthCtx.Provider value={{ user, loading, login, logout }}>{children}</AuthCtx.Provider>;
+  // Changing the password revokes old sessions; the server hands back a fresh token.
+  const changePassword = async (current_password, new_password) => {
+    const { data } = await api.post("/auth/change-password", { current_password, new_password });
+    localStorage.setItem("restos_token", data.token);
+    setUser(data.user);
+  };
+
+  return <AuthCtx.Provider value={{ user, loading, login, logout, changePassword }}>{children}</AuthCtx.Provider>;
 }
 
 export const useAuth = () => useContext(AuthCtx);

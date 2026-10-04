@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ChefHat, Loader2 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, homeFor } from "@/context/AuthContext";
 import { useI18n } from "@/i18n";
 import { errMsg } from "@/lib/api";
 import { LangSwitch } from "@/components/Shared";
@@ -21,7 +21,7 @@ export default function Login() {
     setErr("");
     try {
       const u = await login(email, password);
-      nav(u.role === "owner" ? "/owner" : "/cashier", { replace: true });
+      nav(homeFor(u.role), { replace: true });
     } catch (e2) {
       setErr(errMsg(e2));
     } finally {
@@ -44,7 +44,7 @@ export default function Login() {
             Pesanan masuk real-time, alur dapur yang ketat, dan laporan penjualan otomatis.
           </p>
         </div>
-        <div className="text-xs text-white/50 font-mono">owner@restos.id · kasir1@restos.id</div>
+        <div className="text-xs text-white/50">REST-OS</div>
       </div>
 
       <div className="flex flex-col justify-center px-6 sm:px-16 py-14 bg-[#F8F7F4]">

@@ -2,12 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { LogOut, Bell, Clock, PlayCircle, StopCircle, ChefHat, Trash2, Plus, Minus, Volume2, VolumeX, Printer } from "lucide-react";
 import { api, money, errMsg } from "@/lib/api";
-import { useWs } from "@/lib/ws";
+import { useWs, staffWsQuery } from "@/lib/ws";
 import { playNewOrderSound } from "@/lib/alert";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
 import { useI18n } from "@/i18n";
-import { LangSwitch, StatusBadge } from "@/components/Shared";
+import { LangSwitch, StatusBadge, ChangePasswordButton } from "@/components/Shared";
 import { SoldOutPanel } from "@/components/SoldOutPanel";
 
 const FLOW = ["new", "accepted", "preparing", "ready", "delivered", "closed"];
@@ -63,11 +63,10 @@ export default function CashierDashboard() {
       setOrders((p) => (p.some((o) => o.id === data.id) ? p.map((o) => (o.id === data.id ? data : o)) : [data, ...p]));
     if (event === "call_created") setCalls((p) => [data, ...p]);
     if (event === "call_updated") setCalls((p) => p.map((c) => (c.id === data.id ? data : c)));
-  });
+  }, staffWsQuery());
 
-  const visible = orders.filter(
-    (o) => user.role === "owner" || o.status === "new" || o.accepted_by === user.id
-  );
+  const isManager = user.role !== "cashier";
+  const visible = orders.filter((o) => isManager || o.status === "new" || o.accepted_by === user.id);
   const openCalls = calls.filter((c) => c.status === "open");
 
   const act = async (fn) => {
@@ -104,8 +103,8 @@ export default function CashierDashboard() {
   const saveEdit = () => act(async () => {
     const { data } = await api.put(`/orders/${editing.id}/items`, {
       items: editing.items.map((i) => ({
-        menu_item_id: i.menu_item_id, name: i.name, qty: i.qty,
-        unit_price: i.unit_price, options: i.options || [], note: i.note || "",
+        menu_item_id: i.menu_item_id, qty: i.qty,
+        options: (i.options || []).map((o) => ({ group: o.group || "", label: o.label })), note: i.note || "",
       })),
     });
     setOrders((p) => p.map((x) => (x.id === data.id ? data : x)));
@@ -148,6 +147,7 @@ export default function CashierDashboard() {
                 <PlayCircle className="w-4 h-4" /> {t("startShift")}
               </button>
             )}
+            <ChangePasswordButton dark />
             <button data-testid="logout-btn" onClick={logout} className="w-11 h-11 rounded-xl bg-white/10 grid place-items-center"><LogOut className="w-4 h-4" /></button>
           </div>
         </div>
@@ -206,7 +206,7 @@ export default function CashierDashboard() {
                   )}
                   {o.status === "closed" && (
                     <a
-                      data-testid={`print-invoice-btn-${o.order_number}`} href={`/invoice/${o.id}`} target="_blank" rel="noreferrer"
+                      data-testid={`print-invoice-btn-${o.order_number}`} href={`/invoice/${o.id}?token=${o.public_token}`} target="_blank" rel="noreferrer"
                       className="flex-1 min-h-[52px] rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center gap-2 text-sm font-medium active:scale-95 transition-transform"
                     >
                       <Printer className="w-4 h-4" /> {t("printInvoice")} · {o.order_number}
@@ -266,7 +266,7 @@ export default function CashierDashboard() {
         <div className="fixed inset-0 z-40 bg-black/40 grid place-items-center p-4" onClick={() => setEditing(null)}>
           <div data-testid="edit-order-modal" className="bg-white rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-display font-bold text-xl mb-1">{t("edit")} {editing.order_number}</h3>
-            <p className="text-xs text-neutral-500 mb-4">Jendela edit 60 detik setelah diterima.</p>
+            <p className="text-xs text-neutral-500 mb-4">{t("editWindowNote", { n: settings.edit_window_seconds ?? 60 })}</p>
             <div className="space-y-3">
               {editing.items.map((it, i) => (
                 <div key={i} className="flex items-center gap-3 border-b border-neutral-100 pb-2">

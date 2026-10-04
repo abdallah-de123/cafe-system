@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Printer, ChefHat } from "lucide-react";
-import { api, money } from "@/lib/api";
+import { api, money, errMsg } from "@/lib/api";
 import { useSettings } from "@/context/SettingsContext";
 import { useI18n, localized } from "@/i18n";
 
@@ -9,14 +9,17 @@ const linePrice = (it) => it.unit_price + (it.options || []).reduce((s, o) => s 
 
 export default function Invoice() {
   const { orderId } = useParams();
+  const [params] = useSearchParams();
+  const token = params.get("token") || "";
   const { settings } = useSettings();
   const { t, lang } = useI18n();
   const [o, setO] = useState(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    api.get(`/orders/${orderId}`).then((r) => setO(r.data)).catch(() => setErr("Not found"));
-  }, [orderId]);
+    // Staff are authenticated by their JWT; customers prove ownership with ?token=.
+    api.get(`/orders/${orderId}`, { params: { token } }).then((r) => setO(r.data)).catch((e) => setErr(errMsg(e)));
+  }, [orderId, token]);
 
   if (err) return <div data-testid="invoice-error" className="p-10 text-center text-neutral-500">{err}</div>;
   if (!o) return <div className="p-10 text-center text-neutral-500">...</div>;
@@ -64,7 +67,8 @@ export default function Invoice() {
         <div className="mt-4 text-center text-xs text-neutral-500">
           {o.status === "closed" ? t("paidStamp") : t(`status_${o.status}`)}
           {o.accepted_by_name && <div>{t("handledBy")}: {o.accepted_by_name}</div>}
-          <div className="mt-2">{t("thanksVisit")}</div>
+          <div className="mt-2">{settings.receipt_footer || t("thanksVisit")}</div>
+          {(settings.phone || settings.address) && <div className="mt-1">{[settings.address, settings.phone].filter(Boolean).join(" · ")}</div>}
         </div>
 
         <button

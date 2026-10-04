@@ -28,20 +28,34 @@ export default function CustomerMenu() {
   const [orders, setOrders] = useState([]);
   const [rated, setRated] = useState({});
   const [ratingFor, setRatingFor] = useState(null);
+  const [customerName, setCustomerName] = useState("");
+  // Order tokens live on the customer's phone; they prove ownership of each order.
+  const storeKey = `restos_orders_${table}`;
+  const [tokens, setTokens] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(storeKey) || "[]"); } catch (_) { return []; }
+  });
+  const rememberToken = (o) => {
+    const next = [{ id: o.id, token: o.public_token }, ...tokens.filter((x) => x.id !== o.id)].slice(0, 20);
+    localStorage.setItem(storeKey, JSON.stringify(next));
+    setTokens(next);
+  };
+  const tokenOf = (id) => tokens.find((x) => x.id === id)?.token || "";
 
   const loadMenu = () => {
     api.get("/menu", { params: { include_unavailable: true } }).then((r) => setItems(r.data));
     api.get("/categories").then((r) => setCats(r.data)).catch(() => {});
   };
-  const loadOrders = () => api.get(`/tables/${table}/orders`).then((r) => setOrders(r.data));
+  const loadOrders = () =>
+    api.post("/orders/mine", { tokens: tokens.map((x) => x.token) }).then((r) => setOrders(r.data)).catch(() => {});
 
-  useEffect(() => { loadMenu(); loadOrders(); }, [table]);
+  useEffect(() => { loadMenu(); }, [table]);
+  useEffect(() => { loadOrders(); }, [tokens]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Customer socket: scoped to their own order tokens; menu/settings events are public.
   useWs((event, data) => {
     if (event === "menu_updated") loadMenu();
-    if (event === "order_updated" && data.table_number === table)
-      setOrders((prev) => prev.map((o) => (o.id === data.id ? data : o)));
-  });
+    if (event === "order_updated") setOrders((prev) => prev.map((o) => (o.id === data.id ? data : o)));
+  }, tokens.length ? `orders=${encodeURIComponent(tokens.map((x) => x.token).join(","))}` : "");
 
   const catList = useMemo(
     () => [{ name: "all" }, ...cats.filter((c) => items.some((i) => i.category === c.name))],
@@ -60,15 +74,18 @@ export default function CustomerMenu() {
 
   const submit = async () => {
     try {
+      // Only ids, quantities and chosen options are sent; the server prices everything.
       const payload = {
         table_number: table,
+        customer_name: customerName.trim(),
         items: cart.map((c) => ({
-          menu_item_id: c.menu_item_id, name: c.name, qty: c.qty,
-          unit_price: c.unit_price, options: c.options, note: c.note,
+          menu_item_id: c.menu_item_id, qty: c.qty, note: c.note,
+          options: c.options.map((o) => ({ group: o.group, label: o.label })),
         })),
       };
       const { data } = await api.post("/orders", payload);
       setCart([]); setCartOpen(false);
+      rememberToken(data);
       setOrders((p) => [data, ...p]);
       setPlaced(data);
     } catch (e) { toast.error(errMsg(e)); }
@@ -95,7 +112,7 @@ export default function CustomerMenu() {
                 <div data-testid="table-label" className="text-xs text-neutral-500">{t("table")} {table}</div>
               </div>
             </div>
-            <LangSwitch />
+            <LangSwitch onlyEnabled />
           </div>
 
           <div className="mt-3 relative">
@@ -123,6 +140,9 @@ export default function CustomerMenu() {
       </header>
 
       <main className="max-w-2xl mx-auto px-5 pt-5">
+        {settings.accepting_orders === false && (
+          <div data-testid="orders-paused-banner" className="mb-5 rounded-2xl bg-amber-100 text-amber-900 text-sm p-4 font-medium">{t("ordersPaused")}</div>
+        )}
         {orders.length > 0 && (
           <section className="mb-7">
             <h2 className="font-display font-bold text-lg mb-3">{t("myOrders")}</h2>
@@ -157,7 +177,7 @@ export default function CustomerMenu() {
                   {rated[o.id] && <p className="mt-3 text-xs text-emerald-700">{t("thanks")}</p>}
                   {o.status === "closed" && (
                     <a
-                      data-testid={`view-invoice-link-${o.order_number}`} href={`/invoice/${o.id}`} target="_blank" rel="noreferrer"
+                      data-testid={`view-invoice-link-${o.order_number}`} href={`/invoice/${o.id}?token=${tokenOf(o.id)}`} target="_blank" rel="noreferrer"
                       className="mt-3 w-full h-11 rounded-xl bg-[#2E3D36] text-white font-medium text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
                     >
                       <Receipt className="w-4 h-4" /> {t("viewInvoice")}
@@ -247,7 +267,14 @@ export default function CustomerMenu() {
               ))}
             </div>
             {cart.length > 0 && (
-              <button data-testid="submit-order-btn" onClick={submit} className="mt-5 w-full h-14 rounded-2xl brand-bg text-white font-medium active:scale-95 transition-transform">
+              <input
+                data-testid="customer-name-input" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+                placeholder={t("customerNamePh") + (settings.require_customer_name ? " *" : "")}
+                className="mt-4 w-full h-11 px-4 rounded-xl bg-[#F8F7F4] border border-neutral-200 outline-none text-sm focus:border-[color:var(--brand)]"
+              />
+            )}
+            {cart.length > 0 && (
+              <button data-testid="submit-order-btn" onClick={submit} disabled={settings.accepting_orders === false} className="mt-3 w-full h-14 rounded-2xl brand-bg text-white font-medium active:scale-95 transition-transform disabled:opacity-50">
                 {t("submitOrder")} · {money(cartTotal, cur)}
               </button>
             )}
@@ -280,7 +307,7 @@ export default function CustomerMenu() {
 
       {ratingFor && (
         <RatingSheet
-          order={ratingFor} onClose={() => setRatingFor(null)}
+          order={ratingFor} token={tokenOf(ratingFor.id)} onClose={() => setRatingFor(null)}
           onDone={(id) => { setRated((p) => ({ ...p, [id]: true })); setRatingFor(null); toast.success(t("thanks")); }}
         />
       )}
@@ -349,7 +376,7 @@ function ItemSheet({ sel, setSel, cur, onAdd }) {
               onClick={() => onAdd({
                 menu_item_id: item.id, name: item.name, name_en: item.name_en, name_ar: item.name_ar,
                 qty, unit_price: base, note,
-                options: options.map(({ label, label_en, label_ar, price_delta }) => ({ label, label_en, label_ar, price_delta })),
+                options: options.map(({ group, label, label_en, label_ar, price_delta }) => ({ group, label, label_en, label_ar, price_delta })),
               })}
               className="flex-1 h-12 rounded-xl brand-bg text-white font-medium active:scale-95 transition-transform disabled:opacity-50"
             >
@@ -362,13 +389,13 @@ function ItemSheet({ sel, setSel, cur, onAdd }) {
   );
 }
 
-function RatingSheet({ order, onClose, onDone }) {
+function RatingSheet({ order, token, onClose, onDone }) {
   const { t } = useI18n();
   const [v, setV] = useState({ food: 5, service: 5, speed: 5 });
   const [comment, setComment] = useState("");
   const send = async () => {
     try {
-      await api.post("/ratings", { order_id: order.id, ...v, comment });
+      await api.post("/ratings", { order_id: order.id, token, ...v, comment });
       onDone(order.id);
     } catch (e) { toast.error(errMsg(e)); }
   };
