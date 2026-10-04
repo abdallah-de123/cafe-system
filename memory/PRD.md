@@ -50,8 +50,12 @@ full RTL for Arabic.
   audit log, settings (name, logo, color, currency, tax, service, table count).
 - Verified by the testing agent: 26/26 backend tests pass, customer/cashier/owner frontend flows pass, websocket
   realtime confirmed, RBAC and lifecycle enforcement confirmed.
+- 2026-06 follow-up: new-order alert on cashier tablet (WebAudio chime + screen flash + pulsing card + toast, mute toggle
+  persisted in localStorage); cashier sold-out toggle panel (`PATCH /api/menu/{id}/availability`, any staff, audited,
+  broadcast `menu_updated`); printable invoice page `/invoice/:orderId` (public, print-friendly, linked from cashier
+  closed orders and customer closed orders). Email delivery skipped per user choice.
 
 ## Backlog
 P0 (next): WebSocket auth/token gating; brute-force lockout on login; append item edits to order `history`.
-P1: printable/PDF invoice; kitchen display view; per-item availability toggle from the cashier board; push/sound alert for new orders.
+P1: email invoice (Resend/SendGrid); kitchen display view.
 P2: split router modules for server.py; multi-restaurant tenancy; loyalty/discount codes; payment gateway; customer order history by device.

@@ -362,6 +362,21 @@ async def update_menu(mid: str, body: MenuItemIn, user: dict = Depends(require_o
     return clean(await db.menu_items.find_one({"_id": oid(mid)}))
 
 
+class AvailabilityIn(BaseModel):
+    available: bool
+
+
+@api.patch("/menu/{mid}/availability")
+async def set_availability(mid: str, body: AvailabilityIn, user: dict = Depends(get_current_user)):
+    doc = await db.menu_items.find_one({"_id": oid(mid)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Item not found")
+    await db.menu_items.update_one({"_id": oid(mid)}, {"$set": {"available": body.available}})
+    await audit(user, "menu.availability", f"{doc.get('name')}: {'available' if body.available else 'sold out'}")
+    await manager.broadcast("menu_updated", {})
+    return clean(await db.menu_items.find_one({"_id": oid(mid)}))
+
+
 @api.delete("/menu/{mid}")
 async def delete_menu(mid: str, user: dict = Depends(require_owner)):
     doc = await db.menu_items.find_one({"_id": oid(mid)})

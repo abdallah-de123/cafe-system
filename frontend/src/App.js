@@ -9,6 +9,7 @@ import Login from "@/pages/Login";
 import CustomerMenu from "@/pages/CustomerMenu";
 import CashierDashboard from "@/pages/CashierDashboard";
 import OwnerDashboard from "@/pages/OwnerDashboard";
+import Invoice from "@/pages/Invoice";
 
 function Protected({ children, role }) {
   const { user, loading } = useAuth();
@@ -29,6 +30,7 @@ export default function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/t/:tableNumber" element={<CustomerMenu />} />
+              <Route path="/invoice/:orderId" element={<Invoice />} />
               <Route path="/cashier" element={<Protected><CashierDashboard /></Protected>} />
               <Route path="/owner" element={<Protected role="owner"><OwnerDashboard /></Protected>} />
               <Route path="*" element={<Navigate to="/" replace />} />

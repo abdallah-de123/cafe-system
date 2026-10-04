@@ -155,6 +155,14 @@ export default function CustomerMenu() {
                     </button>
                   )}
                   {rated[o.id] && <p className="mt-3 text-xs text-emerald-700">{t("thanks")}</p>}
+                  {o.status === "closed" && (
+                    <a
+                      data-testid={`view-invoice-link-${o.order_number}`} href={`/invoice/${o.id}`} target="_blank" rel="noreferrer"
+                      className="mt-3 w-full h-11 rounded-xl bg-[#2E3D36] text-white font-medium text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                    >
+                      <Receipt className="w-4 h-4" /> {t("viewInvoice")}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

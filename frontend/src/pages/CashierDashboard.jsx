@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { LogOut, Bell, Clock, PlayCircle, StopCircle, ChefHat, CheckCircle2, Trash2, Plus, Minus } from "lucide-react";
+import { LogOut, Bell, Clock, PlayCircle, StopCircle, ChefHat, Trash2, Plus, Minus, Volume2, VolumeX, Printer } from "lucide-react";
 import { api, money, errMsg } from "@/lib/api";
 import { useWs } from "@/lib/ws";
+import { playNewOrderSound } from "@/lib/alert";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
 import { useI18n } from "@/i18n";
 import { LangSwitch, StatusBadge } from "@/components/Shared";
+import { SoldOutPanel } from "@/components/SoldOutPanel";
 
 const FLOW = ["new", "accepted", "preparing", "ready", "delivered", "closed"];
 const nextOf = (s) => FLOW[FLOW.indexOf(s) + 1];
@@ -23,6 +25,27 @@ export default function CashierDashboard() {
   const [shift, setShift] = useState(null);
   const [lastShift, setLastShift] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [soundOn, setSoundOn] = useState(() => localStorage.getItem("restos_sound") !== "off");
+  const [flash, setFlash] = useState(false);
+  const [fresh, setFresh] = useState({});
+  const soundRef = useRef(soundOn);
+  soundRef.current = soundOn;
+
+  const toggleSound = () => {
+    const v = !soundOn;
+    setSoundOn(v);
+    localStorage.setItem("restos_sound", v ? "on" : "off");
+    if (v) playNewOrderSound();
+  };
+
+  const alertNewOrder = (data) => {
+    if (soundRef.current) playNewOrderSound();
+    setFlash(true);
+    setTimeout(() => setFlash(false), 1800);
+    setFresh((p) => ({ ...p, [data.id]: true }));
+    setTimeout(() => setFresh((p) => { const n = { ...p }; delete n[data.id]; return n; }), 15000);
+    toast(`${t("newOrderAlert")} ${t("table")} ${data.table_number} · ${data.order_number}`, { duration: 6000 });
+  };
 
   const load = () => {
     api.get("/orders").then((r) => setOrders(r.data)).catch(() => {});
@@ -32,7 +55,10 @@ export default function CashierDashboard() {
   useEffect(load, []);
 
   useWs((event, data) => {
-    if (event === "order_created") setOrders((p) => [data, ...p.filter((o) => o.id !== data.id)]);
+    if (event === "order_created") {
+      setOrders((p) => [data, ...p.filter((o) => o.id !== data.id)]);
+      alertNewOrder(data);
+    }
     if (event === "order_updated")
       setOrders((p) => (p.some((o) => o.id === data.id) ? p.map((o) => (o.id === data.id ? data : o)) : [data, ...p]));
     if (event === "call_created") setCalls((p) => [data, ...p]);
@@ -88,7 +114,14 @@ export default function CashierDashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-[#F8F7F4]">
+    <div className={`min-h-screen bg-[#F8F7F4] ${flash ? "new-order-flash" : ""}`}>
+      <style>{`
+        @keyframes orderFlash { 0%,100% { box-shadow: inset 0 0 0 0 rgba(201,74,41,0); } 50% { box-shadow: inset 0 0 0 10px rgba(201,74,41,0.85); } }
+        .new-order-flash { animation: orderFlash 0.6s ease-in-out 3; }
+        @keyframes cardPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(201,74,41,0.6); } 50% { box-shadow: 0 0 0 8px rgba(201,74,41,0); } }
+        .fresh-order { animation: cardPulse 1.2s ease-out infinite; border-color: #C94A29 !important; }
+      `}</style>
+      {flash && <div data-testid="new-order-flash" className="fixed inset-0 z-50 pointer-events-none bg-[#C94A29]/20" />}
       <header className="bg-[#2E3D36] text-white sticky top-0 z-20">
         <div className="px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -100,6 +133,12 @@ export default function CashierDashboard() {
           </div>
           <div className="flex items-center gap-3">
             <LangSwitch dark />
+            <button
+              data-testid="sound-toggle-btn" onClick={toggleSound} title={soundOn ? t("soundOn") : t("soundOff")}
+              className={`w-11 h-11 rounded-xl grid place-items-center ${soundOn ? "bg-white/10" : "bg-red-500/30 text-red-200"}`}
+            >
+              {soundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
             {shift ? (
               <button data-testid="end-shift-btn" onClick={endShift} className="min-h-[44px] px-4 rounded-xl bg-white/10 text-sm font-medium flex items-center gap-2">
                 <StopCircle className="w-4 h-4" /> {t("endShift")}
@@ -120,7 +159,7 @@ export default function CashierDashboard() {
           {visible.length === 0 && <p data-testid="no-orders" className="text-neutral-500">{t("noOrders")}</p>}
           <div className="grid md:grid-cols-2 gap-4">
             {visible.map((o) => (
-              <div key={o.id} data-testid={`order-card-${o.order_number}`} className="bg-white rounded-2xl border border-neutral-200 p-5 rise">
+              <div key={o.id} data-testid={`order-card-${o.order_number}`} className={`bg-white rounded-2xl border border-neutral-200 p-5 rise ${fresh[o.id] ? "fresh-order" : ""}`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="font-display font-bold text-lg">{t("table")} {o.table_number}</div>
@@ -166,9 +205,12 @@ export default function CashierDashboard() {
                     </button>
                   )}
                   {o.status === "closed" && (
-                    <div className="flex-1 min-h-[52px] rounded-xl bg-neutral-100 text-neutral-500 grid place-items-center text-sm font-medium">
-                      <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> {t("invoice")} {o.order_number}</span>
-                    </div>
+                    <a
+                      data-testid={`print-invoice-btn-${o.order_number}`} href={`/invoice/${o.id}`} target="_blank" rel="noreferrer"
+                      className="flex-1 min-h-[52px] rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center gap-2 text-sm font-medium active:scale-95 transition-transform"
+                    >
+                      <Printer className="w-4 h-4" /> {t("printInvoice")} · {o.order_number}
+                    </a>
                   )}
                 </div>
               </div>
@@ -215,6 +257,8 @@ export default function CashierDashboard() {
               </div>
             )}
           </div>
+
+          <SoldOutPanel />
         </aside>
       </main>
 
