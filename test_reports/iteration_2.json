@@ -1,0 +1,29 @@
+{
+  "summary": "Phase-1 hardening verification. Backend pytest 20/20 green. Backend spot-checks: POST /api/orders with unit_price=1 re-priced server-side to 49000 and public_token issued; GET /api/orders/{id} w/o or wrong token -> 403; GET /api/admin/settings as owner -> 403; GET /api/settings has no 'admin' key. Frontend: full customer flow at /t/1 (option-required, add, submit, confirmation, My Orders, live WS status update from new -> ... -> closed with view-invoice-link appearing). Cashier login lands on /cashier; new order appears in real time; card data-testid order-card-{num}; accept + advance through 5 statuses works; print-invoice-btn-{num} opens /invoice/{id}?token=... and shows bill; /invoice/{id} WITHOUT token shows 'Anda tidak punya akses ke pesanan ini' (translated error) - no bill leaked; sold-out-toggle-{itemId} toggles aria-checked true<->false. Owner login lands on /owner; 7 tabs orders/menu/staff/reports/tables/auditLog/settings present, owner-tab-adminPanel absent; super admin aobadq6 NOT visible in staff list; own-row toggle & delete disabled. Staff: role-select offers only Cashier (Kasir); create cashier with valid gmail + 8+ char pw succeeds; invalid email 'a@b' and short password rejected by backend (422); deactivate/reactivate via toggle-staff-{email}, edit (rename+reset pw) via edit-staff-{email} modal, delete via delete-staff-{email} all work. Settings: all 6 sections (sec_general/time/money/orders/inventory/security) expand; edit_window_seconds change saves (success toast); toggling accepting_orders=false and visiting /t/1 shows [data-testid=orders-paused-banner] 'Pemesanan sedang dihentikan sementara' and submit-order-btn disabled; restored to true via PUT /api/settings. Change-password: wrong current -> backend 400 (translated error toast), mismatch -> client validation (new != repeat), successful change allows re-login with new pw; password reset back to QaPass#2026. Language: AR sets <html dir=rtl>, EN sets ltr with English labels (Orders, Shift, Start Shift); customer /t/1 shows all 3 lang buttons (id/en/ar) which is correct since enabled_languages contains all three by default.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_security.py",
+    "/app/backend/tests/test_roles_settings.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py / routers may have grown; still monitor file-size limit per guideline (>700 lines should be split).",
+    "StaffTab client-side form shows no inline validation message for invalid email / short password before POST; backend 422 is returned but the UI toast disappeared quickly in automation — consider leaving the toast visible for 3-5s or adding an inline error below the field for better UX (functional, but a usability nit).",
+    "Order public_token appended to /invoice/{id}?token=... in URL — reasonable for QR flow, but note tokens may leak via browser history/referrer; a short-lived token or server-rendered opaque link would be safer long-term.",
+    "WebSocket auth: staff ?token= and customer ?orders= are enforced per request; no issues observed during live-update tests."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Owner qa.owner.restos@gmail.com / QaPass#2026, Cashier qa.cashier.restos@gmail.com / QaPass#2026 (cashier password confirmed reset back to QaPass#2026 at end of change-password test).",
+  "seed_data_creation": "Created several test orders at table 1 (INV-261004-0010..0016) and one temporary cashier via Staff tab (qa.tmp*.restos@gmail.com) which was deleted at the end of the test. No lingering TEST_ data. Settings accepting_orders=true, edit_window_seconds=60 (restored).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Public URL REACT_APP_BACKEND_URL=https://table-service-33.preview.emergentagent.com. Backend tests at /app/backend/tests (pytest). Important testids: owner-tab-{orders|menu|staff|reports|tables|auditLog|settings|adminPanel}, section-sec_{general|time|money|orders|inventory|security}, save-settings-btn, toggle-{setting_key} (e.g. toggle-accepting_orders), input-{setting_key} (e.g. input-edit_window_seconds), staff-{name|email|password}-input, staff-role-select, create-staff-btn, {edit|toggle|delete}-staff-{email}, edit-staff-modal, edit-staff-{name|password}-input, edit-staff-{cancel|save}-btn, change-password-btn, cp-{current|new|repeat}-input, cp-{cancel|save}-btn, lang-switch, lang-{id|en|ar}, menu-item-{id}, item-sheet, option-{group}-{label}, add-to-cart-btn, open-cart-btn, submit-order-btn, order-confirmation, confirmation-order-number, my-order-{num}, orders-paused-banner, order-card-{num}, accept-btn-{num}, advance-btn-{num}, print-invoice-btn-{num}, view-invoice-link-{num}, sold-out-toggle-{itemId}, new-order-flash (brief 1.8s). Watch rate limits: 10 orders/min per IP, lockout after 5 bad login attempts. PATCH /api/settings doesn't exist; use PUT /api/settings for partial updates.",
+  "rca of the issue": "No bugs identified in this iteration. One timing-related note: the 'new-order-flash' overlay is rendered only for ~1.8s (3x 0.6s animation), so Playwright assertions must poll immediately after order placement; this is working as designed."
+}
