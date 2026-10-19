@@ -18,6 +18,7 @@ DEFAULT_SETTINGS: Dict = {
     # General / restaurant info
     "restaurant_name": "Warung Nusantara",
     "logo": "",
+    "logo_thumbnail": "",
     "primary_color": "#C94A29",
     "phone": "",
     "address": "",
@@ -62,7 +63,7 @@ DEFAULT_ADMIN_SETTINGS: Dict = {
     "feature_flags": {"seed_demo": False},
     "billing_enabled": False,
     "billing_mode": "monthly",
-    "fee_per_invoice": 2500,
+    "fee_per_invoice": 1000,
     "low_balance_warning": 50000,
     "zero_balance_behavior": "warn_grace",
     "grace_invoices": 20,
@@ -85,6 +86,7 @@ class SettingsIn(BaseModel):
     """Partial update of public settings. Every field is optional; each has a sane range."""
     restaurant_name: Optional[str] = Field(None, min_length=1, max_length=120)
     logo: Optional[str] = Field(None, max_length=2000)
+    logo_thumbnail: Optional[str] = Field(None, max_length=2000)
     primary_color: Optional[str] = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
     phone: Optional[str] = Field(None, max_length=40)
     address: Optional[str] = Field(None, max_length=300)

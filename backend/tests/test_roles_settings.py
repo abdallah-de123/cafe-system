@@ -1,8 +1,11 @@
 """Checkpoint B + C: role protections on /staff and settings validation."""
+import asyncio
+
 import pytest
 
 from core.db import db
-from tests.conftest import auth_headers, make_user, login, uniq
+from core.settings import get_settings_doc
+from tests.conftest import auth_headers, make_user, login, uniq, first_menu_item
 
 pytestmark = pytest.mark.anyio
 
@@ -60,6 +63,28 @@ async def test_self_and_last_admin_protection(client):
         await db.users.update_many({"role": "super_admin"}, {"$set": {"active": True}})
 
 
+async def test_concurrent_changes_cannot_disable_every_super_admin(client):
+    """Two simultaneous requests still leave one active super admin."""
+    first = await make_user("super_admin")
+    second = await make_user("super_admin")
+    await db.users.update_many({"role": "super_admin"}, {"$set": {"active": False}})
+    ids = [__import__("bson").ObjectId(first["id"]), __import__("bson").ObjectId(second["id"])]
+    await db.users.update_many({"_id": {"$in": ids}}, {"$set": {"active": True}})
+    try:
+        first_headers = await login(client, first)
+        second_headers = await login(client, second)
+        responses = await asyncio.gather(
+            client.put(f"/api/staff/{second['id']}", json={"active": False}, headers=first_headers),
+            client.put(f"/api/staff/{first['id']}", json={"active": False}, headers=second_headers),
+        )
+        # Depending on request scheduling, the second actor may be rejected as inactive (401)
+        # before reaching the last-admin guard (400). Both outcomes safely block the second change.
+        assert sorted(r.status_code for r in responses) in ([200, 400], [200, 401])
+        assert await db.users.count_documents({"role": "super_admin", "active": True}) == 1
+    finally:
+        await db.users.update_many({"role": "super_admin"}, {"$set": {"active": True}})
+
+
 async def test_deactivation_blocks_login_and_kills_token(client):
     h = await auth_headers(client, "owner")
     c = await make_user("cashier")
@@ -113,6 +138,50 @@ async def test_settings_validation_and_admin_section(client):
     r = await client.put("/api/admin/settings", json={"billing_enabled": True, "fee_per_invoice": 2500, "billing_mode": "prepaid"}, headers=sa)
     assert r.status_code == 200 and r.json()["billing_mode"] == "prepaid"
     assert (await client.put("/api/admin/settings", json={"billing_mode": "weekly"}, headers=sa)).status_code == 422
+    await client.put("/api/admin/settings", json={"billing_enabled": False, "fee_per_invoice": 1000, "billing_mode": "monthly"}, headers=sa)
+
+
+async def test_prepaid_checkout_and_refund_are_recorded_without_mutating_invoice(client):
+    owner = await auth_headers(client, "owner")
+    cashier = await auth_headers(client, "cashier")
+    settings = await get_settings_doc()
+    admin = {"billing_enabled": False, "billing_mode": "monthly", "fee_per_invoice": 1000,
+             "low_balance_warning": 50000, "zero_balance_behavior": "warn_grace", "grace_invoices": 20,
+             "reversal_refunds_fee": False}
+    await db.settings.update_one({"key": "main"}, {"$set": {"admin": admin}})
+    await db.settings.update_one({"key": "main"}, {"$set": {"currency": "SAR", "tax_rate": 10,
+        "tax_enabled": True, "service_enabled": False, "service_charge": 0}})
+    await db.billing_movements.insert_one({"movement_id": "test-initial-credit", "kind": "topup", "amount": 100})
+    await db.billing_accounts.update_one({"_id": "main"}, {"$set": {"balance": 100, "grace_used": 0}}, upsert=True)
+    try:
+        sa = await auth_headers(client, "super_admin")
+        await client.put("/api/admin/settings", json={"billing_enabled": True, "billing_mode": "prepaid",
+            "fee_per_invoice": 10, "reversal_refunds_fee": True}, headers=sa)
+        item = await first_menu_item()
+        options = [{"group": g["name"], "label": g["choices"][0]["label"]} for g in item.get("options", []) if g.get("required")]
+        order = (await client.post("/api/orders", json={"table_number": 1,
+            "items": [{"menu_item_id": str(item["_id"]), "qty": 1, "options": options}]})).json()
+        assert (await client.post(f"/api/orders/{order['id']}/accept", headers=cashier)).status_code == 200
+        checkout = (await client.get(f"/api/orders/{order['id']}/checkout-summary", headers=cashier)).json()
+        assert checkout["currency"] == "SAR" and checkout["system_fee"] == 10
+        assert checkout["system_fee_tax"] == 1 and checkout["invoice_total"] == checkout["restaurant_total"] + 11
+        for status in ("preparing", "ready", "delivered"):
+            assert (await client.post(f"/api/orders/{order['id']}/status", json={"status": status}, headers=cashier)).status_code == 200
+        closed = await client.post(f"/api/orders/{order['id']}/status", json={"status": "closed",
+            "payment_method": "cash", "amount_received": checkout["invoice_total"]}, headers=cashier)
+        assert closed.status_code == 200 and closed.json()["invoice_total"] == checkout["invoice_total"]
+        original_ledger = await db.billing_ledger.find_one({"order_id": order["id"]})
+        assert original_ledger["fee"] == 10
+        assert (await db.billing_accounts.find_one({"_id": "main"}))["balance"] == 90
+        refund = await client.post(f"/api/orders/{order['id']}/refund", json={"reason": "Customer refund"}, headers=owner)
+        assert refund.status_code == 200 and refund.json()["fee_refund"] == 10
+        assert (await db.billing_accounts.find_one({"_id": "main"}))["balance"] == 100
+        assert (await db.billing_ledger.find_one({"order_id": order["id"]}))["_id"] == original_ledger["_id"]
+        assert await db.invoice_reversals.count_documents({"order_id": order["id"]}) == 1
+    finally:
+        await db.settings.update_one({"key": "main"}, {"$set": {"admin": admin, "currency": settings["currency"],
+            "tax_rate": settings["tax_rate"], "tax_enabled": settings["tax_enabled"],
+            "service_enabled": settings["service_enabled"], "service_charge": settings["service_charge"]}})
     await client.put("/api/settings", json={"edit_window_seconds": 60}, headers=owner)
 
 
@@ -130,8 +199,12 @@ async def test_closed_order_is_immutable_and_edit_window(client):
     assert r.json()["detail"]["code"] == "ORDER_NOT_OWNER"
     r = await client.put(f"/api/orders/{o['id']}/items", json={"items": [{**line, "qty": 2, "unit_price": 1}]}, headers=cashier)
     assert r.status_code == 200 and r.json()["items"][0]["qty"] == 2 and r.json()["items"][0]["unit_price"] != 1
+    o["total"] = r.json()["total"]
     assert r.json()["history"][-1]["status"] == "edited"
     for st in ("preparing", "ready", "delivered", "closed"):
-        assert (await client.post(f"/api/orders/{o['id']}/status", json={"status": st}, headers=cashier)).status_code == 200
+        body = {"status": st}
+        if st == "closed":
+            body.update({"payment_method": "cash", "amount_received": o["total"]})
+        assert (await client.post(f"/api/orders/{o['id']}/status", json=body, headers=cashier)).status_code == 200
     r = await client.put(f"/api/orders/{o['id']}/items", json={"items": [line]}, headers=await auth_headers(client, "owner"))
     assert r.json()["detail"]["code"] == "ORDER_CLOSED"

@@ -7,8 +7,10 @@
 import logging
 import os
 
+from fastapi import HTTPException
+
 from core.db import db, now_iso
-from core.security import hash_password, DEMO_EMAILS
+from core.security import hash_password, normalize_email, validate_password_or_fail, DEMO_EMAILS
 
 logger = logging.getLogger("restos")
 
@@ -108,13 +110,23 @@ def _truthy(v: str) -> bool:
 
 async def seed_super_admin():
     """Create the first super admin from env, only if that email does not exist yet."""
-    email = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
+    raw_email = os.environ.get("ADMIN_EMAIL") or ""
     password = os.environ.get("ADMIN_PASSWORD") or ""
-    if not email or not password:
+    if not raw_email.strip() or not password:
         logger.warning("ADMIN_EMAIL / ADMIN_PASSWORD not set: no super admin seeded")
         return
-    if email in DEMO_EMAILS or "@" not in email or len(password) < 8:
-        logger.warning("ADMIN_EMAIL is a demo/invalid address or ADMIN_PASSWORD too short: super admin NOT seeded")
+    try:
+        email = normalize_email(raw_email)
+    except HTTPException:
+        logger.warning("ADMIN_EMAIL is invalid: super admin NOT seeded")
+        return
+    if email in DEMO_EMAILS:
+        logger.warning("ADMIN_EMAIL is a demo address: super admin NOT seeded")
+        return
+    try:
+        await validate_password_or_fail(password)
+    except HTTPException:
+        logger.warning("ADMIN_PASSWORD does not meet configured password rules: super admin NOT seeded")
         return
     if await db.users.find_one({"email": email}):
         return  # never touch an existing account (email or password)

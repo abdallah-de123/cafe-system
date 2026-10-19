@@ -11,15 +11,17 @@ router = APIRouter()
 async def ws_endpoint(ws: WebSocket, token: str = "", orders: str = ""):
     """Authenticate the socket, then keep it open until the client leaves."""
     staff = False
+    role = None
     if token:
         try:
-            await user_from_token(token)
+            user = await user_from_token(token)
             staff = True
+            role = user.get("role")
         except HTTPException:
             await ws.close(code=4401)
             return
     order_tokens = {t for t in orders.split(",") if t}
-    conn = await manager.connect(ws, staff, order_tokens)
+    conn = await manager.connect(ws, staff, order_tokens, role)
     try:
         while True:
             # Clients may send "ping"; we ignore the content and just keep the socket alive.

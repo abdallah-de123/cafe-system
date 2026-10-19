@@ -7,7 +7,15 @@ Rules (enforced here, not only in the UI):
 - The last active super admin can never be deactivated, deleted, or demoted.
 - Deleting a cashier is permanent only if they have no orders/shifts; otherwise they are anonymized.
 """
+import asyncio
+import secrets
+import time
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone, timedelta
+from functools import wraps
+
 from fastapi import APIRouter, Depends
+from pymongo.errors import DuplicateKeyError
 
 from core.audit import audit
 from core.db import db, clean, oid, now_iso
@@ -17,6 +25,51 @@ from core.security import (require_manager, hash_password, normalize_email, vali
 from models import StaffIn, StaffUpdate
 
 router = APIRouter(prefix="/staff", tags=["staff"])
+
+
+@asynccontextmanager
+async def _staff_mutation_lock():
+    """Serialize staff changes across server workers so concurrent requests cannot remove every admin."""
+    lock_id = "staff_mutations"
+    owner = secrets.token_urlsafe(18)
+    deadline = time.monotonic() + 10
+    while True:
+        now = datetime.now(timezone.utc)
+        try:
+            lock = await db.staff_locks.find_one_and_update(
+                {"_id": lock_id, "$or": [
+                    {"expires_at": {"$lte": now.isoformat()}},
+                    {"expires_at": {"$exists": False}},
+                ]},
+                {"$set": {"owner": owner, "expires_at": (now + timedelta(seconds=60)).isoformat()}},
+                upsert=True,
+                return_document=True,
+            )
+        except DuplicateKeyError:
+            # Another worker may have inserted the lock while this worker attempted the upsert.
+            lock = None
+        if lock and lock.get("owner") == owner:
+            break
+        if time.monotonic() >= deadline:
+            fail(503, "STAFF_UPDATE_BUSY")
+        await asyncio.sleep(0.05)
+    try:
+        yield
+    finally:
+        # Expire only our own lock, so we never release a lock another worker has acquired.
+        await db.staff_locks.update_one(
+            {"_id": lock_id, "owner": owner},
+            {"$set": {"expires_at": datetime.now(timezone.utc).isoformat()}},
+        )
+
+
+def _serialize_staff_changes(endpoint):
+    """Run each staff mutation under a short shared lock across server workers."""
+    @wraps(endpoint)
+    async def wrapped(*args, **kwargs):
+        async with _staff_mutation_lock():
+            return await endpoint(*args, **kwargs)
+    return wrapped
 
 
 def _public(u: dict) -> dict:
@@ -56,6 +109,7 @@ async def list_staff(user: dict = Depends(require_manager)):
 
 
 @router.post("")
+@_serialize_staff_changes
 async def create_staff(body: StaffIn, user: dict = Depends(require_manager)):
     """Create a staff account. Email must be real and unique; password must pass the rules."""
     if body.role not in MANAGEABLE[user["role"]]:
@@ -75,6 +129,7 @@ async def create_staff(body: StaffIn, user: dict = Depends(require_manager)):
 
 
 @router.put("/{sid}")
+@_serialize_staff_changes
 async def update_staff(sid: str, body: StaffUpdate, user: dict = Depends(require_manager)):
     """Rename, (de)activate, reset password, or change role, with all the protections above."""
     target = await _get_target(sid, user)
@@ -112,6 +167,7 @@ async def update_staff(sid: str, body: StaffUpdate, user: dict = Depends(require
 
 
 @router.delete("/{sid}")
+@_serialize_staff_changes
 async def delete_staff(sid: str, user: dict = Depends(require_manager)):
     """Remove a staff member. Hard delete if they left no trace; otherwise anonymize and deactivate."""
     target = await _get_target(sid, user)

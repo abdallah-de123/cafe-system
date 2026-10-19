@@ -211,7 +211,7 @@ export default function CustomerMenu() {
               className="text-start bg-white rounded-2xl border border-neutral-200 overflow-hidden soft-shadow hover:-translate-y-1 transition-transform duration-300 disabled:opacity-50 rise"
               style={{ animationDelay: `${idx * 40}ms` }}
             >
-              <img src={it.image} alt={localized(it, "name", lang)} className="w-full h-32 object-cover" />
+              {it.image && <img src={it.image_thumbnail || it.image} alt={localized(it, "name", lang)} className="w-full h-32 object-cover" />}
               <div className="p-3">
                 <div className="font-display font-bold text-sm leading-tight">{localized(it, "name", lang)}</div>
                 <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{localized(it, "description", lang)}</p>

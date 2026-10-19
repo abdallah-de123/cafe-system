@@ -18,10 +18,11 @@ PUBLIC_EVENTS = {"menu_updated", "settings_updated"}
 class Connection:
     """One socket plus what it is allowed to see."""
 
-    def __init__(self, ws: WebSocket, staff: bool, order_tokens: Set[str]):
+    def __init__(self, ws: WebSocket, staff: bool, order_tokens: Set[str], role: str | None = None):
         self.ws = ws
         self.staff = staff
         self.order_tokens = order_tokens
+        self.role = role
 
 
 class Manager:
@@ -30,9 +31,9 @@ class Manager:
     def __init__(self):
         self.conns: List[Connection] = []
 
-    async def connect(self, ws: WebSocket, staff: bool, order_tokens: Set[str]) -> Connection:
+    async def connect(self, ws: WebSocket, staff: bool, order_tokens: Set[str], role: str | None = None) -> Connection:
         await ws.accept()
-        c = Connection(ws, staff, order_tokens)
+        c = Connection(ws, staff, order_tokens, role)
         self.conns.append(c)
         return c
 
@@ -43,6 +44,8 @@ class Manager:
     def _allowed(self, c: Connection, event: str, data: Any) -> bool:
         """Decide whether this connection may receive the event."""
         if c.staff:
+            if event in {"inventory_alert", "inventory_updated"}:
+                return c.role in {"owner", "super_admin"}
             return True
         if event in PUBLIC_EVENTS:
             return True
@@ -58,7 +61,11 @@ class Manager:
             payload = data
             # Customers never receive staff-only fields.
             if not c.staff and isinstance(data, dict):
-                payload = {k: v for k, v in data.items() if k not in ("accepted_by",)}
+                payload = {k: v for k, v in data.items()
+                           if k not in ("accepted_by", "cancelled_by", "inventory_consumption")}
+                if isinstance(payload.get("items"), list):
+                    payload["items"] = [{k: v for k, v in line.items() if k != "inventory_requirements"}
+                                         for line in payload["items"]]
             try:
                 await c.ws.send_json({"event": event, "data": payload})
             except Exception:

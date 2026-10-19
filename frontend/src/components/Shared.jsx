@@ -60,6 +60,7 @@ export const StatusBadge = ({ status }) => {
     ready: "bg-[#2E3D36] text-white",
     delivered: "bg-emerald-100 text-emerald-800",
     closed: "bg-neutral-200 text-neutral-700",
+    cancelled: "bg-red-100 text-red-700",
   };
   return (
     <span data-testid={`status-badge-${status}`} className={`px-2.5 py-1 rounded-full text-xs font-bold ${map[status]}`}>

@@ -11,8 +11,12 @@ const input = "w-full h-11 px-4 rounded-xl bg-white border border-neutral-200 ou
 export function AdminTab({ Panel }) {
   const { t } = useI18n();
   const [f, setF] = useState(null);
+  const [usage, setUsage] = useState(null);
+  const [topUpAmount, setTopUpAmount] = useState("");
+  const [topUpNote, setTopUpNote] = useState("");
 
-  useEffect(() => { api.get("/admin/settings").then((r) => setF(r.data)).catch((e) => toast.error(errMsg(e))); }, []);
+  const loadUsage = () => api.get("/admin/billing/usage").then((r) => setUsage(r.data)).catch(() => {});
+  useEffect(() => { api.get("/admin/settings").then((r) => setF(r.data)).catch((e) => toast.error(errMsg(e))); loadUsage(); }, []);
 
   const save = async () => {
     try {
@@ -20,6 +24,20 @@ export function AdminTab({ Panel }) {
       if (!body.license_expires_at) delete body.license_expires_at;
       const { data } = await api.put("/admin/settings", body);
       setF(data); toast.success(t("save") + " ✓");
+    } catch (e) { toast.error(errMsg(e)); }
+  };
+
+  const topUp = async () => {
+    try {
+      await api.post("/admin/billing/topups", { amount: Number(topUpAmount), note: topUpNote });
+      setTopUpAmount(""); setTopUpNote(""); loadUsage(); toast.success(t("save"));
+    } catch (e) { toast.error(errMsg(e)); }
+  };
+
+  const markMonthPaid = async () => {
+    try {
+      await api.post("/admin/billing/month-paid", { month: usage.month, note: "", paid: !usage.monthly_paid });
+      loadUsage(); toast.success(t("save"));
     } catch (e) { toast.error(errMsg(e)); }
   };
 
@@ -55,6 +73,13 @@ export function AdminTab({ Panel }) {
         {row("grace_invoices", text("grace_invoices", "number"))}
         {row("reversal_refunds_fee", <Toggle id="reversal_refunds_fee" checked={!!f.reversal_refunds_fee} onChange={(v) => setF({ ...f, reversal_refunds_fee: v })} />)}
       </div>
+      {usage && <div data-testid="admin-billing-usage" className="bg-white rounded-2xl border border-neutral-200 p-5 mt-5 space-y-4">
+        <h3 className="font-display font-bold">{t("billingSummary")} · {usage.month}</h3>
+        <div className="flex flex-wrap gap-6 text-sm"><span>{t("invoiceCount")}: <b>{usage.invoice_count}</b></span><span>{t("systemFee")}: <b>{usage.fees} {usage.currency}</b></span><span>{t("balance")}: <b>{usage.balance} {usage.currency}</b></span></div>
+        <div className="space-y-1">{usage.days.map((d) => <div key={d.date} className="flex justify-between text-sm border-b py-2"><span>{d.date} · {d.count}</span><b>{d.fees} {usage.currency}</b></div>)}</div>
+        {f.billing_mode === "monthly" && <div className="flex items-center gap-3"><span className="text-sm">{usage.monthly_paid ? t("paidStamp") : t("unpaid")}</span><button onClick={markMonthPaid} className="min-h-10 px-4 rounded-xl brand-bg text-white text-sm">{t(usage.monthly_paid ? "markUnpaid" : "markPaid")}</button></div>}
+        {f.billing_mode === "prepaid" && <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-2"><input aria-label={t("topUpAmount")} type="number" min="0.01" value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} placeholder={t("topUpAmount")} className={input} /><input aria-label={t("note")} value={topUpNote} onChange={(e) => setTopUpNote(e.target.value)} placeholder={t("note")} className={input} /><button disabled={!Number(topUpAmount)} onClick={topUp} className="min-h-11 px-4 rounded-xl brand-bg text-white disabled:opacity-50">{t("topUp")}</button></div>}
+      </div>}
     </Panel>
   );
 }

@@ -24,7 +24,9 @@ export default function CashierDashboard() {
   const [calls, setCalls] = useState([]);
   const [shift, setShift] = useState(null);
   const [lastShift, setLastShift] = useState(null);
+  const [myProgress, setMyProgress] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [paying, setPaying] = useState(null);
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem("restos_sound") !== "off");
   const [flash, setFlash] = useState(false);
   const [fresh, setFresh] = useState({});
@@ -51,6 +53,7 @@ export default function CashierDashboard() {
     api.get("/orders").then((r) => setOrders(r.data)).catch(() => {});
     api.get("/calls").then((r) => setCalls(r.data)).catch(() => {});
     api.get("/shifts/current").then((r) => setShift(r.data)).catch(() => {});
+    api.get("/reports/me").then((r) => setMyProgress(r.data)).catch(() => {});
   };
   useEffect(load, []);
 
@@ -79,19 +82,51 @@ export default function CashierDashboard() {
     toast.success(`${t("accept")} ${o.order_number}`);
   });
 
-  const advance = (o) => act(async () => {
-    const { data } = await api.post(`/orders/${o.id}/status`, { status: nextOf(o.status) });
+  const advance = (o) => {
+    if (nextOf(o.status) === "closed") {
+      const methods = Object.entries(settings.payment_methods || {}).filter(([, enabled]) => enabled).map(([method]) => method);
+      api.get(`/orders/${o.id}/checkout-summary`).then(({ data }) => setPaying({ order: o, method: methods[0] || "cash", amount: String(data.invoice_total), amounts: data })).catch((e) => toast.error(errMsg(e)));
+      return;
+    }
+    return act(async () => {
+      const { data } = await api.post(`/orders/${o.id}/status`, { status: nextOf(o.status) });
+      setOrders((p) => p.map((x) => (x.id === o.id ? data : x)));
+      toast.success(`${o.order_number} → ${t(`status_${data.status}`)}`);
+    });
+  };
+
+  const submitPayment = () => act(async () => {
+    const { data } = await api.post(`/orders/${paying.order.id}/status`, {
+      status: "closed", payment_method: paying.method, amount_received: Number(paying.amount),
+    });
+    setOrders((p) => p.map((x) => (x.id === data.id ? data : x)));
+    setPaying(null);
+    toast.success(`${paying.order.order_number} → ${t("paidStamp")}`);
+  });
+
+  const cancelOrder = (o) => act(async () => {
+    const reason = window.prompt(t("cancelReasonPrompt"));
+    if (!reason?.trim()) return;
+    const { data } = await api.post(`/orders/${o.id}/cancel`, { reason: reason.trim() });
     setOrders((p) => p.map((x) => (x.id === o.id ? data : x)));
-    toast.success(`${o.order_number} → ${t(`status_${data.status}`)}`);
+    toast.success(t("orderCancelled"));
   });
 
   const startShift = () => act(async () => {
-    const { data } = await api.post("/shifts/start");
+    const raw = window.prompt(t("openingCashPrompt"), "0");
+    if (raw === null) return;
+    const opening_cash = Number(raw);
+    if (!Number.isFinite(opening_cash) || opening_cash < 0) return toast.error(t("invalidCashAmount"));
+    const { data } = await api.post("/shifts/start", { opening_cash });
     setShift(data); toast.success(t("startShift"));
   });
 
   const endShift = () => act(async () => {
-    const { data } = await api.post("/shifts/end");
+    const raw = window.prompt(t("countedCashPrompt"));
+    if (raw === null) return;
+    const counted_cash = Number(raw);
+    if (!Number.isFinite(counted_cash) || counted_cash < 0) return toast.error(t("invalidCashAmount"));
+    const { data } = await api.post("/shifts/end", { counted_cash });
     setShift(null); setLastShift(data);
   });
 
@@ -139,7 +174,7 @@ export default function CashierDashboard() {
               {soundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </button>
             {shift ? (
-              <button data-testid="end-shift-btn" onClick={endShift} className="min-h-[44px] px-4 rounded-xl bg-white/10 text-sm font-medium flex items-center gap-2">
+                <button data-testid="end-shift-btn" onClick={endShift} className="min-h-[44px] px-4 rounded-xl bg-white/10 text-sm font-medium flex items-center gap-2">
                 <StopCircle className="w-4 h-4" /> {t("endShift")}
               </button>
             ) : (
@@ -194,7 +229,7 @@ export default function CashierDashboard() {
                       {t("accept")}
                     </button>
                   )}
-                  {o.status !== "new" && o.status !== "closed" && (
+                  {!(["new", "closed", "cancelled"].includes(o.status)) && (
                     <button data-testid={`advance-btn-${o.order_number}`} onClick={() => advance(o)} className="flex-1 min-h-[52px] rounded-xl bg-[#2E3D36] text-white font-medium active:scale-95 transition-transform">
                       {nextOf(o.status) === "closed" ? t("markPaid") : `→ ${t(`status_${nextOf(o.status)}`)}`}
                     </button>
@@ -203,6 +238,9 @@ export default function CashierDashboard() {
                     <button data-testid={`edit-order-btn-${o.order_number}`} onClick={() => setEditing({ ...o, items: o.items.map((x) => ({ ...x })) })} className="min-h-[52px] px-4 rounded-xl border border-neutral-200 font-medium">
                       {t("edit")}
                     </button>
+                  )}
+                  {["new", "accepted", "preparing", "ready"].includes(o.status) && (
+                    <button data-testid={`cancel-order-btn-${o.order_number}`} onClick={() => cancelOrder(o)} className="min-h-[52px] px-4 rounded-xl border border-red-200 text-red-700 font-medium">{t("cancelOrder")}</button>
                   )}
                   {o.status === "closed" && (
                     <a
@@ -219,6 +257,10 @@ export default function CashierDashboard() {
         </section>
 
         <aside className="space-y-6">
+          <div data-testid="cashier-progress" className="bg-white rounded-2xl border border-neutral-200 p-5">
+            <h3 className="font-display font-bold text-lg mb-3">{t("myProgress")}</h3>
+            {myProgress && <div className="text-sm space-y-2"><div className="flex justify-between"><span>{t("ordersCount")}</span><b>{myProgress.orders}</b></div><div className="flex justify-between"><span>{t("mySales")}</span><b>{money(myProgress.sales, cur)}</b></div><div className="flex justify-between"><span>{t("cashSales")}</span><b>{money(myProgress.cash, cur)}</b></div><div className="flex justify-between"><span>{t("shifts")}</span><b>{myProgress.shifts}</b></div></div>}
+          </div>
           <div className="bg-white rounded-2xl border border-neutral-200 p-5">
             <h3 className="font-display font-bold text-lg flex items-center gap-2 mb-3">
               <Bell className="w-4 h-4 brand-text" /> {t("calls")} · {openCalls.length}
@@ -253,7 +295,11 @@ export default function CashierDashboard() {
             {lastShift && (
               <div data-testid="shift-summary" className="mt-3 text-sm bg-[#F8F7F4] rounded-xl p-3 space-y-1">
                 <div className="flex justify-between"><span>{t("ordersCount")}</span><b>{lastShift.orders_count}</b></div>
-                <div className="flex justify-between"><span>{t("totalCash")}</span><b>{money(lastShift.total_cash, cur)}</b></div>
+                <div className="flex justify-between"><span>{t("totalCash")}</span><b>{money(lastShift.cash_sales ?? lastShift.total_cash, cur)}</b></div>
+                <div className="flex justify-between"><span>{t("openingCash")}</span><b>{money(lastShift.opening_cash, cur)}</b></div>
+                <div className="flex justify-between"><span>{t("expectedCash")}</span><b>{money(lastShift.expected_cash, cur)}</b></div>
+                <div className="flex justify-between"><span>{t("countedCash")}</span><b>{money(lastShift.counted_cash, cur)}</b></div>
+                <div className="flex justify-between"><span>{t("cashDifference")}</span><b className={lastShift.cash_difference < 0 ? "text-red-600" : "text-emerald-700"}>{money(lastShift.cash_difference, cur)}</b></div>
               </div>
             )}
           </div>
@@ -285,6 +331,26 @@ export default function CashierDashboard() {
           </div>
         </div>
       )}
+
+      {paying && <div className="fixed inset-0 z-40 bg-black/40 grid place-items-center p-4" onClick={() => setPaying(null)}>
+        <div data-testid="payment-modal" className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+          <h3 className="font-display font-bold text-xl mb-1">{t("recordPayment")}</h3>
+          <p className="text-sm text-neutral-500 mb-2">{paying.order.order_number}</p>
+          {paying.amounts && <div className="text-sm rounded-xl bg-[#F8F7F4] p-3 mb-4 space-y-1">
+            <div className="flex justify-between"><span>{t("restaurantAmount")}</span><b>{money(paying.amounts.restaurant_total, cur)}</b></div>
+            {paying.amounts.system_fee > 0 && <div className="flex justify-between"><span>{t("systemFee")}</span><b>{money(paying.amounts.system_fee, cur)}</b></div>}
+            {paying.amounts.system_fee_tax > 0 && <div className="flex justify-between"><span>{t("systemFeeTax")}</span><b>{money(paying.amounts.system_fee_tax, cur)}</b></div>}
+            <div className="flex justify-between border-t pt-1"><span>{t("total")}</span><b>{money(paying.amounts.invoice_total, cur)}</b></div>
+          </div>}
+          <div className="space-y-3">
+            <select className="w-full h-11 px-4 rounded-xl bg-white border border-neutral-200 text-sm" value={paying.method} onChange={(e) => setPaying({ ...paying, method: e.target.value })}>
+              {Object.entries(settings.payment_methods || {}).filter(([, enabled]) => enabled).map(([method]) => <option key={method} value={method}>{t(`pm_${method}`)}</option>)}
+            </select>
+            <input data-testid="payment-amount-input" className="w-full h-11 px-4 rounded-xl bg-white border border-neutral-200 text-sm" type="number" min={paying.amounts?.invoice_total ?? paying.order.total} step="any" value={paying.amount} onChange={(e) => setPaying({ ...paying, amount: e.target.value })} />
+          </div>
+          <div className="flex gap-3 mt-5"><button onClick={() => setPaying(null)} className="flex-1 h-11 rounded-xl border">{t("cancel")}</button><button onClick={submitPayment} disabled={!paying.method || !paying.amounts || Number(paying.amount) < Number(paying.amounts?.invoice_total ?? paying.order.total)} className="flex-1 h-11 rounded-xl brand-bg text-white disabled:opacity-50">{t("confirmPayment")}</button></div>
+        </div>
+      </div>}
     </div>
   );
 }

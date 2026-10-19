@@ -51,6 +51,7 @@ __pycache__/
 *pyc*
 venv/
 .venv/
+/backend/uploads/
 
 # Development tools
 chainlit.md
@@ -75,6 +76,7 @@ agenthub/agents/youtube/db
 
 # Build caches
 .cache/
+/frontend/work/
 
 memory/test_credentials.md
 

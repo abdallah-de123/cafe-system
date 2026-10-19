@@ -31,7 +31,7 @@ export default function Invoice() {
       <div data-testid="invoice-page" className="max-w-sm mx-auto bg-white rounded-2xl border border-neutral-200 p-6 print:border-0 print:rounded-none">
         <div className="text-center mb-5">
           {settings.logo ? (
-            <img src={settings.logo} alt="" className="w-14 h-14 rounded-xl object-cover mx-auto mb-2" />
+            <img src={settings.logo_thumbnail || settings.logo} alt="" className="w-14 h-14 rounded-xl object-cover mx-auto mb-2" />
           ) : (
             <div className="w-12 h-12 rounded-xl brand-bg text-white grid place-items-center mx-auto mb-2"><ChefHat className="w-6 h-6" /></div>
           )}
@@ -59,8 +59,10 @@ export default function Invoice() {
           <div className="flex justify-between text-neutral-600"><span>{t("subtotal")}</span><span>{money(o.subtotal, cur)}</span></div>
           <div className="flex justify-between text-neutral-600"><span>{t("tax")} {o.tax_rate}%</span><span>{money(o.tax, cur)}</span></div>
           <div className="flex justify-between text-neutral-600"><span>{t("service")} {o.service_rate}%</span><span>{money(o.service, cur)}</span></div>
+          {(o.system_fee || 0) > 0 && <div data-testid="invoice-system-fee" className="flex justify-between text-neutral-600"><span>{t("systemFee")}</span><span>{money(o.system_fee, cur)}</span></div>}
+          {(o.system_fee_tax || 0) > 0 && <div className="flex justify-between text-neutral-600"><span>{t("systemFeeTax")}</span><span>{money(o.system_fee_tax, cur)}</span></div>}
           <div data-testid="invoice-total" className="flex justify-between font-display font-bold text-lg pt-2 border-t border-neutral-200 mt-2">
-            <span>{t("total")}</span><span>{money(o.total, cur)}</span>
+            <span>{t("total")}</span><span>{money(o.invoice_total ?? o.total, cur)}</span>
           </div>
         </div>
 

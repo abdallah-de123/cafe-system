@@ -1,6 +1,6 @@
 // Settings screen grouped into sections (General, Time & Language, Money, Orders, Inventory, Security).
 // Every field maps 1:1 to a backend setting key; the backend validates ranges and audits changes.
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { toast } from "sonner";
 import { api, errMsg } from "@/lib/api";
 import { useSettings } from "@/context/SettingsContext";
@@ -10,7 +10,7 @@ const input = "w-full h-11 px-4 rounded-xl bg-white border border-neutral-200 ou
 
 // Field types per section. "text" | "number" | "bool" | "color" | "time" | "select:<opts>"
 const SECTIONS = [
-  ["sec_general", [["restaurant_name", "text"], ["logo", "text"], ["primary_color", "color"], ["phone", "text"], ["address", "text"],
+  ["sec_general", [["restaurant_name", "text"], ["logo", "logo"], ["primary_color", "color"], ["phone", "text"], ["address", "text"],
     ["opening_hours", "text"], ["receipt_footer", "text"], ["wifi_name", "text"], ["wifi_password", "text"]]],
   ["sec_time", [["timezone", "text"], ["business_day_start", "time"], ["business_day_end", "time"], ["language", "lang"], ["enabled_languages", "langs"]]],
   ["sec_money", [["currency", "text"], ["tax_enabled", "bool"], ["tax_rate", "number"], ["service_enabled", "bool"], ["service_charge", "number"],
@@ -34,7 +34,28 @@ export function SettingsTab({ Panel }) {
   const { settings, setSettings } = useSettings();
   const [f, setF] = useState({ ...settings });
   const [open, setOpen] = useState("sec_general");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const cameraRef = useRef(null);
+  const galleryRef = useRef(null);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+
+  // Upload and optimize the logo on the server, then keep its full and thumbnail URLs together.
+  const uploadLogo = async (file) => {
+    if (!file) return;
+    const data = new FormData();
+    data.append("file", file);
+    data.append("kind", "logo");
+    setUploadingLogo(true);
+    try {
+      const { data: uploaded } = await api.post("/uploads/images", data);
+      if (f.logo && f.logo !== settings.logo) {
+        api.delete("/uploads/images", { data: { image: f.logo } }).catch(() => {});
+      }
+      set("logo", uploaded.image);
+      set("logo_thumbnail", uploaded.thumbnail);
+    } catch (e) { toast.error(errMsg(e)); }
+    finally { setUploadingLogo(false); }
+  };
 
   const save = async () => {
     try {
@@ -57,6 +78,25 @@ export function SettingsTab({ Panel }) {
       </div>
     );
     if (type === "bool") return row(<Toggle id={k} checked={!!f[k]} onChange={(v) => set(k, v)} />);
+    if (type === "logo") return row(<div className="w-full max-w-xs space-y-2">
+      {f.logo && <img src={f.logo_thumbnail || f.logo} alt={label} className="w-20 h-20 rounded-xl object-cover border border-neutral-200" />}
+      <div className="flex flex-wrap gap-2">
+        <label className="min-h-10 px-3 rounded-lg border border-neutral-200 text-xs font-medium grid place-items-center cursor-pointer">
+          {t("imageCamera")}<input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={(e) => { uploadLogo(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
+        <label className="min-h-10 px-3 rounded-lg border border-neutral-200 text-xs font-medium grid place-items-center cursor-pointer">
+          {t("imageGallery")}<input ref={galleryRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => { uploadLogo(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
+        {f.logo && <button type="button" onClick={() => {
+          if (f.logo !== settings.logo) api.delete("/uploads/images", { data: { image: f.logo } }).catch(() => {});
+          set("logo", ""); set("logo_thumbnail", "");
+        }}
+          className="min-h-10 px-3 rounded-lg text-xs text-red-600 border border-neutral-200">{t("removeImage")}</button>}
+      </div>
+      {uploadingLogo && <span className="text-xs text-neutral-500">{t("uploadingImage")}</span>}
+    </div>);
     if (type === "color") return row(<input data-testid={`input-${k}`} type="color" className="h-11 w-20 rounded-xl border border-neutral-200" value={f[k] || "#C94A29"} onChange={(e) => set(k, e.target.value)} />);
     if (type === "lang") return row(
       <select data-testid={`input-${k}`} className={input} value={f[k]} onChange={(e) => set(k, e.target.value)}>
